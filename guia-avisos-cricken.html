@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guia de Avisos — Cricken Nomina</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Nunito:wght@400;600;700&display=swap');
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Nunito', sans-serif;
+    background: #f3f0fa;
+    color: #1a0a2e;
+    min-height: 100vh;
+    padding: 40px 20px;
+  }
+
+  .page-header {
+    text-align: center;
+    margin-bottom: 48px;
+  }
+
+  .page-header h1 {
+    font-family: 'Baloo 2', cursive;
+    font-size: 30px;
+    font-weight: 800;
+    color: #4a1a8a;
+    margin-bottom: 6px;
+  }
+
+  .page-header p {
+    color: #6b7280;
+    font-size: 14px;
+  }
+
+  .logo-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .logo-circle {
+    width: 48px;
+    height: 48px;
+    background: #4a1a8a;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+  }
+
+  .section {
+    max-width: 940px;
+    margin: 0 auto 56px;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding: 14px 20px;
+    border-radius: 16px;
+    border-left: 5px solid;
+  }
+
+  .section-header.entrada {
+    background: #fff7ed;
+    border-color: #f59e0b;
+  }
+
+  .section-header.salida {
+    background: #fff1f2;
+    border-color: #f43f5e;
+  }
+
+  .section-header-icon { font-size: 28px; }
+
+  .section-header-text h2 {
+    font-family: 'Baloo 2', cursive;
+    font-size: 18px;
+    font-weight: 800;
+  }
+
+  .entrada .section-header-text h2 { color: #d97706; }
+  .salida .section-header-text h2 { color: #e11d48; }
+
+  .section-header-text p {
+    font-size: 13px;
+    color: #6b7280;
+    margin-top: 2px;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 280px 60px 1fr;
+    gap: 0;
+    align-items: center;
+  }
+
+  /* PHONE MOCKUP */
+  .phone {
+    background: #3b1f6b;
+    border-radius: 24px;
+    border: 2px solid #6b21a8;
+    padding: 20px 16px;
+    box-shadow: 0 8px 32px rgba(74,26,138,0.3), 0 2px 8px rgba(0,0,0,0.2);
+  }
+
+  .phone-notch {
+    width: 60px;
+    height: 6px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 3px;
+    margin: 0 auto 16px;
+  }
+
+  .alert-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 20px;
+    margin-bottom: 8px;
+  }
+
+  .alert-badge.entrada { background: rgba(245,158,11,0.2); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
+  .alert-badge.salida { background: rgba(244,63,94,0.2); color: #fb7185; border: 1px solid rgba(244,63,94,0.3); }
+
+  .phone-title {
+    font-family: 'Baloo 2', cursive;
+    font-size: 15px;
+    font-weight: 800;
+    color: white;
+    margin-bottom: 6px;
+  }
+
+  .phone-subtitle {
+    font-size: 11px;
+    color: rgba(255,255,255,0.6);
+    line-height: 1.5;
+    margin-bottom: 14px;
+  }
+
+  .phone-subtitle strong { color: #facc15; }
+
+  .phone-option {
+    background: rgba(255,255,255,0.08);
+    border: 1.5px solid rgba(255,255,255,0.12);
+    border-radius: 12px;
+    padding: 11px 12px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .phone-option.active-opt {
+    background: rgba(250,204,21,0.15);
+    border-color: rgba(250,204,21,0.5);
+  }
+
+  .phone-option-title {
+    font-weight: 700;
+    font-size: 12px;
+    color: white;
+    margin-bottom: 2px;
+  }
+
+  .phone-option-desc {
+    font-size: 10px;
+    color: rgba(255,255,255,0.45);
+  }
+
+  .phone-input {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 8px;
+    padding: 7px 10px;
+    font-size: 12px;
+    color: white;
+    width: 100%;
+    margin-top: 8px;
+    font-family: 'Nunito', sans-serif;
+  }
+
+  .phone-hint {
+    font-size: 9px;
+    color: rgba(255,255,255,0.3);
+    margin-top: 3px;
+  }
+
+  .phone-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .phone-btn {
+    padding: 9px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 12px;
+    text-align: center;
+    font-family: 'Nunito', sans-serif;
+  }
+
+  .phone-btn-cancel {
+    background: rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.6);
+    border: 1px solid rgba(255,255,255,0.15);
+  }
+
+  .phone-btn-confirm {
+    background: #facc15;
+    color: #1a0a2e;
+  }
+
+  /* ARROWS COL */
+  .arrows-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-around;
+    height: 100%;
+    padding: 20px 0;
+    gap: 16px;
+  }
+
+  .arrow-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .arrow-icon {
+    font-size: 26px;
+    animation: pulse-right 1.4s ease-in-out infinite;
+  }
+
+  .arrow-icon:last-child { animation-delay: 0.3s; }
+
+  @keyframes pulse-right {
+    0%, 100% { transform: translateX(0); opacity: 0.7; }
+    50% { transform: translateX(5px); opacity: 1; }
+  }
+
+  /* EXPLANATION CARDS */
+  .cards-col {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .explain-card {
+    border-radius: 16px;
+    padding: 18px 20px;
+    border: 1.5px solid;
+  }
+
+  .explain-card.opt1 {
+    background: #fffbeb;
+    border-color: #fde68a;
+  }
+
+  .explain-card.opt2 {
+    background: #eef2ff;
+    border-color: #c7d2fe;
+  }
+
+  .explain-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    font-weight: 800;
+    font-size: 13px;
+    margin-right: 8px;
+    flex-shrink: 0;
+  }
+
+  .opt1 .explain-num { background: #fde68a; color: #92400e; }
+  .opt2 .explain-num { background: #c7d2fe; color: #3730a3; }
+
+  .explain-title-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  .explain-title {
+    font-weight: 800;
+    font-size: 14px;
+  }
+
+  .opt1 .explain-title { color: #92400e; }
+  .opt2 .explain-title { color: #3730a3; }
+
+  .explain-text {
+    font-size: 13px;
+    color: #374151;
+    line-height: 1.6;
+    margin-bottom: 10px;
+    padding-left: 32px;
+  }
+
+  .explain-result {
+    font-size: 12px;
+    font-weight: 700;
+    padding: 7px 14px;
+    border-radius: 8px;
+    margin-left: 32px;
+    display: inline-block;
+  }
+
+  .opt1 .explain-result { background: #fef08a; color: #713f12; }
+  .opt2 .explain-result { background: #c7d2fe; color: #1e1b4b; }
+
+  .divider {
+    max-width: 940px;
+    margin: 0 auto 48px;
+    height: 2px;
+    background: linear-gradient(to right, transparent, #c4b5fd, transparent);
+  }
+
+  @media (max-width: 700px) {
+    .layout {
+      grid-template-columns: 1fr;
+    }
+    .arrows-col {
+      flex-direction: row;
+      height: auto;
+      padding: 16px 0;
+    }
+    .arrow-icon {
+      transform: rotate(90deg);
+    }
+    @keyframes pulse-right {
+      0%, 100% { transform: rotate(90deg) translateX(0); opacity: 0.7; }
+      50% { transform: rotate(90deg) translateX(5px); opacity: 1; }
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <div class="logo-row">
+    <div class="logo-circle"><img src="public/Logo_Cricken.png" style="width:40px;height:40px;border-radius:10px;object-fit:cover;"></div>
+    <span style="font-family:'Baloo 2',cursive;font-size:22px;font-weight:800;color:#4a1a8a;">Cricken Nomina</span>
+  </div>
+  <h1>Guia de Avisos de Horario</h1>
+  <p>Que hacer cuando la app te muestra un aviso al registrar tu entrada o salida</p>
+</div>
+
+<!-- ENTRADA ANTICIPADA -->
+<div class="section">
+  <div class="section-header entrada">
+    <div class="section-header-icon">⚠️</div>
+    <div class="section-header-text">
+      <h2>Aviso cuando llegas ANTES de tu hora de inicio</h2>
+      <p>Este aviso aparece si presionas "Registrar Entrada" antes de la hora en que empieza tu turno</p>
+    </div>
+  </div>
+
+  <div class="layout">
+    <!-- Phone mockup -->
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <span class="alert-badge entrada">⚠️ Aviso de horario</span>
+      <div class="phone-title">Entraste antes de tu horario</div>
+      <div class="phone-subtitle">
+        Estas registrando entrada a las <strong>08:30</strong>, pero tu turno inicia a las <strong>10:00</strong>.<br>¿Cual es el motivo?
+      </div>
+
+      <div class="phone-option active-opt">
+        <div class="phone-option-title">🕐 Corregir la hora de entrada</div>
+        <div class="phone-option-desc">Escribe la hora correcta a la que debes iniciar</div>
+        <input class="phone-input" type="time" value="10:00">
+        <div class="phone-hint">Solo puedes poner desde las 10:00 en adelante</div>
+      </div>
+
+      <div class="phone-option">
+        <div class="phone-option-title">✅ Autorizado por el administrador</div>
+        <div class="phone-option-desc">El administrador te pidio entrar antes de lo normal</div>
+      </div>
+
+      <div class="phone-buttons">
+        <div class="phone-btn phone-btn-cancel">Cancelar</div>
+        <div class="phone-btn phone-btn-confirm">Confirmar</div>
+      </div>
+    </div>
+
+    <!-- Arrows -->
+    <div class="arrows-col">
+      <div class="arrow-block">
+        <div class="arrow-icon">➡️</div>
+      </div>
+      <div class="arrow-block">
+        <div class="arrow-icon">➡️</div>
+      </div>
+    </div>
+
+    <!-- Explanations -->
+    <div class="cards-col">
+      <div class="explain-card opt1">
+        <div class="explain-title-row">
+          <span class="explain-num">1</span>
+          <span class="explain-title">Corregir la hora de entrada</span>
+        </div>
+        <p class="explain-text">
+          Llegaste temprano al local pero quieres que tu hora de entrada quede registrada como las <strong>10:00</strong> (la hora oficial de inicio del turno).<br><br>
+          Escribe la hora en el campo. <strong>No puedes poner una hora antes de las 10:00</strong> — si lo necesitas, usa la opcion 2.
+        </p>
+        <span class="explain-result">✅ Se guarda: entrada a las 10:00</span>
+      </div>
+
+      <div class="explain-card opt2">
+        <div class="explain-title-row">
+          <span class="explain-num">2</span>
+          <span class="explain-title">Autorizado por el administrador</span>
+        </div>
+        <p class="explain-text">
+          El administrador te pidio que entraras antes de lo normal. La hora real en que llegaste (<strong>08:30</strong>) queda registrada y el administrador podra ver el motivo que escribiste directamente en la nomina.
+        </p>
+        <span class="explain-result">📝 Se guarda: entrada 08:30 + motivo</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- SALIDA TARDIA -->
+<div class="section">
+  <div class="section-header salida">
+    <div class="section-header-icon">⏰</div>
+    <div class="section-header-text">
+      <h2>Aviso cuando sales DESPUES de tu hora de fin</h2>
+      <p>Este aviso aparece si presionas "Registrar Salida" despues de la hora en que termina tu turno</p>
+    </div>
+  </div>
+
+  <div class="layout">
+    <!-- Phone mockup -->
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <span class="alert-badge salida">⏰ Aviso de horario</span>
+      <div class="phone-title">Salida fuera de horario</div>
+      <div class="phone-subtitle">
+        Son las <strong>23:15</strong> pero el horario termina a las <strong>22:00</strong>.<br>¿Cual es el motivo?
+      </div>
+
+      <div class="phone-option active-opt">
+        <div class="phone-option-title">🕐 Corregir la hora de salida</div>
+        <div class="phone-option-desc">Indica la hora real en que terminaste dentro del horario</div>
+        <input class="phone-input" type="time" value="22:00">
+        <div class="phone-hint">Solo puedes poner hasta las 22:00 (fin del turno)</div>
+      </div>
+
+      <div class="phone-option">
+        <div class="phone-option-title">📝 Otro motivo</div>
+        <div class="phone-option-desc">Hubo una situacion especial que justifica la hora extra</div>
+      </div>
+
+      <div class="phone-buttons">
+        <div class="phone-btn phone-btn-cancel">Cancelar</div>
+        <div class="phone-btn phone-btn-confirm">Confirmar salida</div>
+      </div>
+    </div>
+
+    <!-- Arrows -->
+    <div class="arrows-col">
+      <div class="arrow-block">
+        <div class="arrow-icon">➡️</div>
+      </div>
+      <div class="arrow-block">
+        <div class="arrow-icon">➡️</div>
+      </div>
+    </div>
+
+    <!-- Explanations -->
+    <div class="cards-col">
+      <div class="explain-card opt1">
+        <div class="explain-title-row">
+          <span class="explain-num">1</span>
+          <span class="explain-title">Corregir la hora de salida</span>
+        </div>
+        <p class="explain-text">
+          Se te olvido registrar la salida a tiempo y ya pasaron las 22:00. Escribe la hora real en que terminaste tu turno.<br><br>
+          <strong>No puedes poner una hora despues de las 22:00</strong> — si la situacion lo requiere, usa la opcion 2.
+        </p>
+        <span class="explain-result">✅ Se guarda: salida a las 22:00 (corregida)</span>
+      </div>
+
+      <div class="explain-card opt2">
+        <div class="explain-title-row">
+          <span class="explain-num">2</span>
+          <span class="explain-title">Otro motivo</span>
+        </div>
+        <p class="explain-text">
+          Hubo una situacion especial: entrega de un pedido, emergencia u otra razon valida. La hora real (<strong>23:15</strong>) queda registrada junto con el motivo que escribas. El administrador lo vera en la nomina.
+        </p>
+        <span class="explain-result">📝 Se guarda: salida 23:15 + motivo</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="text-align:center;color:#9ca3af;font-size:12px;padding-bottom:20px;">
+  Cricken Nomina — Guia de uso para trabajadores
+</div>
+
+</body>
+</html>
