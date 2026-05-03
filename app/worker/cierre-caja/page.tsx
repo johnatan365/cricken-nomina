@@ -140,8 +140,9 @@ export default function CierreCajaPage() {
   const puveDiff = puveReported > 0 ? puveReported - (puveTransTotal + puveEfectivoCalculado) : null
   const puveOk   = puveDiff === null || Math.abs(puveDiff) < 1
 
-  const nextBase   = cashToOwner !== '' ? cashCounted - n(cashToOwner) : null
-  const needsNote  = Math.abs(difference) >= 1 && cashCounted > 0
+  const nextBase      = cashToOwner !== '' ? cashCounted - n(cashToOwner) : null
+  const needsNote     = Math.abs(difference) >= 1 && cashCounted > 0
+  const hasBaseChange = nextBaseOverride !== '' && nextBase !== null && Math.abs(n(nextBaseOverride) - nextBase) >= 1
 
   // Cargar borrador
   useEffect(() => {
