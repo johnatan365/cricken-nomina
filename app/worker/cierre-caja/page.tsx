@@ -198,7 +198,6 @@ export default function CierreCajaPage() {
     setBillCounts(BILL_DENOMINATIONS.map(d => ({ denomination: d, quantity: '' })))
     setPuveTransfers([{ amount: '' }])
     setDidiOrders([]); setWhatsappOrders([])
-    setCancelledOrders([]); setSupplierPayments([])
     setCashToOwner(''); setDifferenceNote('')
     setDraftRestored(false); clearDraft()
   }
