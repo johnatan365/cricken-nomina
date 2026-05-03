@@ -81,7 +81,6 @@ export default function CierreCajaPage() {
   const [activeTab, setActiveTab]         = useState<'form' | 'historial'>('form')
   const [expandedId, setExpandedId]       = useState<string | null>(null)
   const [draftRestored, setDraftRestored] = useState(false)
-  const [sidebarOpen, setSidebarOpen]     = useState(false)
 
   // Form state
   const [shift, setShift]                       = useState<Shift>('morning')
@@ -265,24 +264,11 @@ export default function CierreCajaPage() {
   return (
     <div className="space-y-4 max-w-full mx-auto">
 
-      {/* Header con hamburguesa para el sidebar */}
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setSidebarOpen(o => !o)}
-            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-all"
-            title="Mostrar/ocultar menú"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <line x1="3" y1="6"  x2="21" y2="6"/>
-              <line x1="3" y1="12" x2="21" y2="12"/>
-              <line x1="3" y1="18" x2="21" y2="18"/>
-            </svg>
-          </button>
-          <div>
-            <h1 className="page-title">Cierre de Caja</h1>
-            <p className="text-muted text-xs mt-0.5">{worker?.full_name}</p>
-          </div>
+        <div>
+          <h1 className="page-title">Cierre de Caja</h1>
+          <p className="text-muted text-xs mt-0.5">{worker?.full_name}</p>
         </div>
         <div className="flex gap-2 bg-white/5 rounded-2xl p-1">
           {(['form', 'historial'] as const).map(tab => (
@@ -444,8 +430,8 @@ export default function CierreCajaPage() {
               </Col>
 
               {/* COL 4 — WhatsApp */}
-              <Col title="WhatsApp">
-                <p className="text-white/40 text-xs font-semibold">Pagos en efectivo</p>
+              <Col title="Cancelados / WhatsApp">
+                <p className="text-white/40 text-xs font-semibold">Pedidos WhatsApp (efectivo)</p>
                 <p className="text-white/25 text-xs">↵ Enter para agregar otro</p>
                 {whatsappOrders.map((o, i) => (
                   <div key={i} className="flex gap-1">
