@@ -292,7 +292,7 @@ export default function AdminCierreCajaPage() {
         </div>
       )}
 
-      {/* Alerta descuadres */}}
+      {/* Alerta descuadres */}
       {!loading && withIssues > 0 && (
         <div className="rounded-2xl px-4 py-3 border bg-red-500/15 border-red-400/30 flex items-center justify-between">
           <div className="flex items-center gap-3">
