@@ -7,17 +7,14 @@ import { es } from 'date-fns/locale'
 import { formatCOP } from '@/types'
 
 type Shift = 'morning' | 'afternoon'
-
 const BILL_DENOMINATIONS = [100000, 50000, 20000, 10000, 5000, 2000, 1000, 500, 200, 100, 50]
-
 type BillCount     = { denomination: number; quantity: string }
 type Transfer      = { amount: string }
 type DidiItem      = { order_id: string; cash: string; transfers: Transfer[] }
 type WhatsappItem  = { amount: string }
 type CancelledItem = { invoice: string; amount: string }
 type SupplierItem  = { description: string; amount: string }
-
-type CashRegister = {
+type CashRegister  = {
   id: string; shift: Shift; register_date: string
   opening_fund: number; puve_cash: number; puve_transfer: number
   didi_cash_total: number; didi_transfer_total: number
@@ -32,18 +29,7 @@ type CashRegister = {
 
 const n = (v: string | number) => parseFloat(String(v).replace(/\./g, '').replace(',', '.')) || 0
 const SHIFT_LABELS: Record<Shift, string> = { morning: '☀️ Turno Mañana', afternoon: '🌙 Turno Tarde' }
-
-const DRAFT_KEY = 'cricken_cierre_draft'
-function saveDraft(data: object) {
-  try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...data, savedAt: new Date().toISOString() })) } catch {}
-}
-function loadDraft() {
-  try { const raw = localStorage.getItem(DRAFT_KEY); return raw ? JSON.parse(raw) : null } catch { return null }
-}
-function clearDraft() {
-  try { localStorage.removeItem(DRAFT_KEY) } catch {} }
-
-const DRAFT_KEY = 'cricken_cierre_draft'
+const DRAFT_KEY = 'cricken_cierre_draft_v1'
 
 function saveDraft(data: object) {
   try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...data, savedAt: new Date().toISOString() })) } catch {}
@@ -55,33 +41,9 @@ function clearDraft() {
   try { localStorage.removeItem(DRAFT_KEY) } catch {}
 }
 
-// Hook para manejar listas con Enter
-function useEnterList<T>(
-  items: T[],
-  setItems: React.Dispatch<React.SetStateAction<T[]>>,
-  emptyItem: T,
-  focusRefs: React.MutableRefObject<(HTMLInputElement | null)[]>
-) {
-  const handleKeyDown = (e: React.KeyboardEvent, index: number, field?: 'last') => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      const isLast = index === items.length - 1
-      if (isLast || field === 'last') {
-        setItems(prev => [...prev, emptyItem])
-        setTimeout(() => {
-          focusRefs.current[index + 1]?.focus()
-        }, 50)
-      } else {
-        focusRefs.current[index + 1]?.focus()
-      }
-    }
-  }
-  return handleKeyDown
-}
-
-function Col({ title, children, className = '' }: { title: string; children: React.ReactNode; className?: string }) {
+function Col({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className={`flex flex-col ${className}`}>
+    <div className="flex flex-col">
       <div className="bg-yellow-400 text-purple-900 font-bold text-xs text-center py-2 px-3 rounded-t-xl">{title}</div>
       <div className="bg-white/8 border border-white/10 border-t-0 rounded-b-xl flex-1 p-3 space-y-1.5">
         {children}
@@ -90,8 +52,7 @@ function Col({ title, children, className = '' }: { title: string; children: Rea
   )
 }
 
-function TotalRow({ label, value, color = 'text-yellow-400', border = true }:
-  { label: string; value: number; color?: string; border?: boolean }) {
+function TotalRow({ label, value, color = 'text-yellow-400', border = true }: { label: string; value: number; color?: string; border?: boolean }) {
   return (
     <div className={`flex justify-between items-center text-xs font-bold py-1 ${border ? 'border-t border-white/15 mt-1 pt-2' : ''}`}>
       <span className="text-white/70">{label}</span>
@@ -106,43 +67,43 @@ function DiffBadge({ diff }: { diff: number }) {
   return <span className="text-red-400 font-bold">{formatCOP(diff)} faltante</span>
 }
 
-const inputCls = "w-full bg-white/10 border border-white/15 rounded-lg px-2 py-1.5 text-white text-xs placeholder-white/30 focus:outline-none focus:border-yellow-400/70 focus:bg-white/15 transition-all"
+const inp = "w-full bg-white/10 border border-white/15 rounded-lg px-2 py-1.5 text-white text-xs placeholder-white/30 focus:outline-none focus:border-yellow-400/70 focus:bg-white/15 transition-all"
 
 export default function CierreCajaPage() {
-  const [worker, setWorker] = useState<{ id: string; full_name: string } | null>(null)
+  const [worker, setWorker]       = useState<{ id: string; full_name: string } | null>(null)
   const [registers, setRegisters] = useState<CashRegister[]>([])
   const [suggestedBase, setSuggestedBase] = useState(0)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  const [loading, setLoading]     = useState(true)
+  const [saving, setSaving]       = useState(false)
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
   const [activeTab, setActiveTab] = useState<'form' | 'historial'>('form')
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [draftRestored, setDraftRestored] = useState(false)
 
-  // Form — se inicializa desde localStorage si hay borrador guardado
-  const _draft = typeof window !== 'undefined' ? loadDraft() : null
-  const [shift, setShift]               = useState<Shift>(_draft?.shift ?? 'morning')
-  const [openingFund, setOpeningFund]   = useState<string>(_draft?.openingFund ?? '')
-  const [billCounts, setBillCounts]     = useState<BillCount[]>(
-    _draft?.billCounts ?? BILL_DENOMINATIONS.map(d => ({ denomination: d, quantity: '' }))
-  )
-  const [puveTransfers, setPuveTransfers]       = useState<Transfer[]>(_draft?.puveTransfers ?? [{ amount: '' }])
-  const [didiOrders, setDidiOrders]             = useState<DidiItem[]>(_draft?.didiOrders ?? [])
-  const [whatsappOrders, setWhatsappOrders]     = useState<WhatsappItem[]>(_draft?.whatsappOrders ?? [])
-  const [cancelledOrders, setCancelledOrders]   = useState<CancelledItem[]>(_draft?.cancelledOrders ?? [])
-  const [supplierPayments, setSupplierPayments] = useState<SupplierItem[]>(_draft?.supplierPayments ?? [])
-  const [cashToOwner, setCashToOwner]           = useState<string>(_draft?.cashToOwner ?? '')
-  const [differenceNote, setDifferenceNote]     = useState<string>(_draft?.differenceNote ?? '')
-  const [draftRestored]                         = useState<boolean>(!!_draft)
+  // Form state — inicializado desde localStorage
+  const [shift, setShift]                       = useState<Shift>('morning')
+  const [openingFund, setOpeningFund]           = useState('')
+  const [billCounts, setBillCounts]             = useState<BillCount[]>(BILL_DENOMINATIONS.map(d => ({ denomination: d, quantity: '' })))
+  const [puveTransfers, setPuveTransfers]       = useState<Transfer[]>([{ amount: '' }])
+  const [didiOrders, setDidiOrders]             = useState<DidiItem[]>([])
+  const [whatsappOrders, setWhatsappOrders]     = useState<WhatsappItem[]>([])
+  const [cancelledOrders, setCancelledOrders]   = useState<CancelledItem[]>([])
+  const [supplierPayments, setSupplierPayments] = useState<SupplierItem[]>([])
+  const [cashToOwner, setCashToOwner]           = useState('')
+  const [differenceNote, setDifferenceNote]     = useState('')
 
-  // Refs para focus con Enter
+  // Refs para foco con Enter
   const billRefs        = useRef<(HTMLInputElement | null)[]>([])
   const puveTransRefs   = useRef<(HTMLInputElement | null)[]>([])
   const whatsappRefs    = useRef<(HTMLInputElement | null)[]>([])
+  const cancelInvRefs   = useRef<(HTMLInputElement | null)[]>([])
   const cancelAmtRefs   = useRef<(HTMLInputElement | null)[]>([])
-  const supplierAmtRefs = useRef<(HTMLInputElement | null)[]>([])
+  const supplierDescRefs = useRef<(HTMLInputElement | null)[]>([])
+  const supplierAmtRefs  = useRef<(HTMLInputElement | null)[]>([])
+  const didiIdRefs      = useRef<(HTMLInputElement | null)[]>([])
   const didiCashRefs    = useRef<(HTMLInputElement | null)[]>([])
 
-  // Cálculos
+  // Cálculos en tiempo real
   const cashCounted    = billCounts.reduce((s, b) => s + b.denomination * n(b.quantity), 0)
   const puveTransTotal = puveTransfers.reduce((s, t) => s + n(t.amount), 0)
   const didiCash       = didiOrders.reduce((s, o) => s + n(o.cash), 0)
@@ -150,14 +111,31 @@ export default function CierreCajaPage() {
   const whatsappTotal  = whatsappOrders.reduce((s, o) => s + n(o.amount), 0)
   const cancelledTotal = cancelledOrders.reduce((s, o) => s + n(o.amount), 0)
   const supplierTotal  = supplierPayments.reduce((s, o) => s + n(o.amount), 0)
-
   const totalRealSales = cashCounted + puveTransTotal + didiCash + didiTransTotal + whatsappTotal - cancelledTotal
   const expectedCash   = n(openingFund) + cashCounted + didiCash + whatsappTotal - supplierTotal
   const difference     = cashCounted - expectedCash
   const nextBase       = cashToOwner !== '' ? cashCounted - n(cashToOwner) : null
   const needsNote      = Math.abs(difference) >= 1 && cashCounted > 0
 
-  // Autosave en localStorage cada vez que cambia el formulario
+  // Cargar borrador al montar
+  useEffect(() => {
+    const draft = loadDraft()
+    if (draft) {
+      if (draft.shift)            setShift(draft.shift)
+      if (draft.openingFund)      setOpeningFund(draft.openingFund)
+      if (draft.billCounts)       setBillCounts(draft.billCounts)
+      if (draft.puveTransfers)    setPuveTransfers(draft.puveTransfers)
+      if (draft.didiOrders)       setDidiOrders(draft.didiOrders)
+      if (draft.whatsappOrders)   setWhatsappOrders(draft.whatsappOrders)
+      if (draft.cancelledOrders)  setCancelledOrders(draft.cancelledOrders)
+      if (draft.supplierPayments) setSupplierPayments(draft.supplierPayments)
+      if (draft.cashToOwner)      setCashToOwner(draft.cashToOwner)
+      if (draft.differenceNote)   setDifferenceNote(draft.differenceNote)
+      setDraftRestored(true)
+    }
+  }, [])
+
+  // Autosave cada vez que cambia el formulario
   useEffect(() => {
     saveDraft({ shift, openingFund, billCounts, puveTransfers, didiOrders, whatsappOrders, cancelledOrders, supplierPayments, cashToOwner, differenceNote })
   }, [shift, openingFund, billCounts, puveTransfers, didiOrders, whatsappOrders, cancelledOrders, supplierPayments, cashToOwner, differenceNote])
@@ -171,7 +149,7 @@ export default function CierreCajaPage() {
     const res  = await fetch('/api/worker/cash-register?worker_id=' + w.id)
     const json = await res.json()
     setRegisters(json.registers || [])
-    if (json.suggestedBase > 0) {
+    if (json.suggestedBase > 0 && !loadDraft()?.openingFund) {
       setSuggestedBase(json.suggestedBase)
       setOpeningFund(String(json.suggestedBase))
     }
@@ -186,84 +164,118 @@ export default function CierreCajaPage() {
   }
 
   function resetForm() {
+    setShift('morning')
+    setOpeningFund('')
     setBillCounts(BILL_DENOMINATIONS.map(d => ({ denomination: d, quantity: '' })))
     setPuveTransfers([{ amount: '' }])
     setDidiOrders([]); setWhatsappOrders([])
     setCancelledOrders([]); setSupplierPayments([])
     setCashToOwner(''); setDifferenceNote('')
+    setDraftRestored(false)
     clearDraft()
   }
 
-  // Enter en billetes → siguiente denominación
-  function handleBillKeyDown(e: React.KeyboardEvent, i: number) {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      billRefs.current[i + 1]?.focus()
+  // ── Handlers Enter ──────────────────────────────────────────
+
+  // Billetes: Enter → siguiente denominación
+  function onBillEnter(e: React.KeyboardEvent, i: number) {
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+    billRefs.current[i + 1]?.focus()
+  }
+
+  // Transferencias Puve: Enter → nueva fila y foco
+  function onPuveTransEnter(e: React.KeyboardEvent, i: number) {
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+    const next = i + 1
+    if (next >= puveTransfers.length) {
+      setPuveTransfers(prev => {
+        const updated = [...prev, { amount: '' }]
+        setTimeout(() => puveTransRefs.current[next]?.focus(), 30)
+        return updated
+      })
+    } else {
+      puveTransRefs.current[next]?.focus()
     }
   }
 
-  // Enter en transferencias Puve → nueva fila
-  function handlePuveTransKeyDown(e: React.KeyboardEvent, i: number) {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      if (i === puveTransfers.length - 1) {
-        setPuveTransfers(prev => [...prev, { amount: '' }])
-        setTimeout(() => puveTransRefs.current[i + 1]?.focus(), 50)
-      } else {
-        puveTransRefs.current[i + 1]?.focus()
-      }
+  // WhatsApp: Enter → nueva fila y foco
+  function onWhatsappEnter(e: React.KeyboardEvent, i: number) {
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+    const next = i + 1
+    if (next >= whatsappOrders.length) {
+      setWhatsappOrders(prev => {
+        const updated = [...prev, { amount: '' }]
+        setTimeout(() => whatsappRefs.current[next]?.focus(), 30)
+        return updated
+      })
+    } else {
+      whatsappRefs.current[next]?.focus()
     }
   }
 
-  // Enter en WhatsApp → nueva fila
-  function handleWhatsappKeyDown(e: React.KeyboardEvent, i: number) {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      if (i === whatsappOrders.length - 1) {
-        setWhatsappOrders(prev => [...prev, { amount: '' }])
-        setTimeout(() => whatsappRefs.current[i + 1]?.focus(), 50)
-      } else {
-        whatsappRefs.current[i + 1]?.focus()
-      }
+  // Cancelados: Enter en factura → monto; Enter en monto → nueva fila
+  function onCancelInvEnter(e: React.KeyboardEvent, i: number) {
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+    cancelAmtRefs.current[i]?.focus()
+  }
+  function onCancelAmtEnter(e: React.KeyboardEvent, i: number) {
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+    const next = i + 1
+    if (next >= cancelledOrders.length) {
+      setCancelledOrders(prev => {
+        const updated = [...prev, { invoice: '', amount: '' }]
+        setTimeout(() => cancelInvRefs.current[next]?.focus(), 30)
+        return updated
+      })
+    } else {
+      cancelInvRefs.current[next]?.focus()
     }
   }
 
-  // Enter en monto cancelado → nueva fila
-  function handleCancelKeyDown(e: React.KeyboardEvent, i: number) {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      if (i === cancelledOrders.length - 1) {
-        setCancelledOrders(prev => [...prev, { invoice: '', amount: '' }])
-        setTimeout(() => cancelAmtRefs.current[i + 1]?.focus(), 50)
-      } else {
-        cancelAmtRefs.current[i + 1]?.focus()
-      }
+  // Proveedores: Enter en descripción → monto; Enter en monto → nueva fila
+  function onSupplierDescEnter(e: React.KeyboardEvent, i: number) {
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+    supplierAmtRefs.current[i]?.focus()
+  }
+  function onSupplierAmtEnter(e: React.KeyboardEvent, i: number) {
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+    const next = i + 1
+    if (next >= supplierPayments.length) {
+      setSupplierPayments(prev => {
+        const updated = [...prev, { description: '', amount: '' }]
+        setTimeout(() => supplierDescRefs.current[next]?.focus(), 30)
+        return updated
+      })
+    } else {
+      supplierDescRefs.current[next]?.focus()
     }
   }
 
-  // Enter en monto proveedor → nueva fila
-  function handleSupplierKeyDown(e: React.KeyboardEvent, i: number) {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      if (i === supplierPayments.length - 1) {
-        setSupplierPayments(prev => [...prev, { description: '', amount: '' }])
-        setTimeout(() => supplierAmtRefs.current[i + 1]?.focus(), 50)
-      } else {
-        supplierAmtRefs.current[i + 1]?.focus()
-      }
-    }
+  // Didi: Enter en ID → efectivo; Enter en efectivo → nuevo pedido
+  function onDidiIdEnter(e: React.KeyboardEvent, i: number) {
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+    didiCashRefs.current[i]?.focus()
   }
-
-  // Enter en efectivo Didi → siguiente pedido o nuevo
-  function handleDidiCashKeyDown(e: React.KeyboardEvent, i: number) {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      if (i === didiOrders.length - 1) {
-        setDidiOrders(prev => [...prev, { order_id: '', cash: '', transfers: [] }])
-        setTimeout(() => didiCashRefs.current[i + 1]?.focus(), 50)
-      } else {
-        didiCashRefs.current[i + 1]?.focus()
-      }
+  function onDidiCashEnter(e: React.KeyboardEvent, i: number) {
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+    const next = i + 1
+    if (next >= didiOrders.length) {
+      setDidiOrders(prev => {
+        const updated = [...prev, { order_id: '', cash: '', transfers: [] }]
+        setTimeout(() => didiIdRefs.current[next]?.focus(), 30)
+        return updated
+      })
+    } else {
+      didiIdRefs.current[next]?.focus()
     }
   }
 
@@ -278,18 +290,13 @@ export default function CierreCajaPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         worker_id: worker.id, shift,
-        opening_fund:    n(openingFund),
-        puve_cash:       cashCounted,
-        puve_transfer:   puveTransTotal,
-        didi_orders:     didiOrders,
-        whatsapp_orders: whatsappOrders,
-        cancelled_orders: cancelledOrders,
-        supplier_payments: supplierPayments,
-        cash_counted:    cashCounted,
-        cash_to_owner:   n(cashToOwner),
+        opening_fund: n(openingFund),
+        puve_cash: cashCounted, puve_transfer: puveTransTotal,
+        didi_orders: didiOrders, whatsapp_orders: whatsappOrders,
+        cancelled_orders: cancelledOrders, supplier_payments: supplierPayments,
+        cash_counted: cashCounted, cash_to_owner: n(cashToOwner),
         difference_note: differenceNote.trim() || null,
-        bill_counts:     billCounts,
-        puve_transfers:  puveTransfers,
+        bill_counts: billCounts, puve_transfers: puveTransfers,
       }),
     })
     const json = await res.json()
@@ -316,9 +323,7 @@ export default function CierreCajaPage() {
         <div className="flex gap-2 bg-white/5 rounded-2xl p-1">
           {(['form', 'historial'] as const).map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)}
-              className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${
-                activeTab === tab ? 'bg-yellow-400 text-purple-900' : 'text-white/50 hover:text-white'
-              }`}>
+              className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === tab ? 'bg-yellow-400 text-purple-900' : 'text-white/50 hover:text-white'}`}>
               {tab === 'form' ? '💰 Nuevo cierre' : '📋 Historial'}
             </button>
           ))}
@@ -326,35 +331,30 @@ export default function CierreCajaPage() {
       </div>
 
       {statusMsg && (
-        <div className={`rounded-2xl px-4 py-3 text-sm font-semibold border ${
-          statusMsg.type === 'success'
-            ? 'bg-emerald-500/20 border-emerald-400/30 text-emerald-300'
-            : 'bg-red-500/20 border-red-400/30 text-red-300'
-        }`}>{statusMsg.msg}</div>
-      )}
-
-      {/* ── FORMULARIO ── */}
-      {activeTab === 'form' && (
-        <div className="space-y-4">
-
-          {/* Banner borrador restaurado */}
-      {draftRestored && (
-        <div className="rounded-2xl px-4 py-2.5 text-xs font-semibold border bg-purple-500/20 border-purple-400/30 text-purple-200 flex items-center gap-2">
-          <span>⚡</span>
-          <span>Borrador recuperado — los datos del formulario anterior fueron restaurados automáticamente.</span>
+        <div className={`rounded-2xl px-4 py-3 text-sm font-semibold border ${statusMsg.type === 'success' ? 'bg-emerald-500/20 border-emerald-400/30 text-emerald-300' : 'bg-red-500/20 border-red-400/30 text-red-300'}`}>
+          {statusMsg.msg}
         </div>
       )}
 
-      {/* Turno + Base */}
+      {activeTab === 'form' && (
+        <div className="space-y-4">
+          {/* Banner borrador restaurado */}
+          {draftRestored && (
+            <div className="rounded-2xl px-4 py-2.5 text-xs font-semibold border bg-purple-500/20 border-purple-400/30 text-purple-200 flex items-center gap-2">
+              <span>⚡</span>
+              <span>Borrador recuperado — continuás donde lo dejaste.</span>
+              <button onClick={resetForm} className="ml-auto text-purple-300 hover:text-white underline">Limpiar</button>
+            </div>
+          )}
+
+          {/* Turno + Base */}
           <div className="flex items-center gap-4 bg-white/8 border border-white/10 rounded-2xl px-5 py-3">
             <div className="flex gap-2">
               {(['morning', 'afternoon'] as const).map(s => (
                 <button key={s} onClick={() => setShift(s)}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all ${
-                    shift === s
-                      ? 'bg-yellow-400 text-purple-900 border-yellow-400'
-                      : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10'
-                  }`}>{SHIFT_LABELS[s]}</button>
+                  className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all ${shift === s ? 'bg-yellow-400 text-purple-900 border-yellow-400' : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10'}`}>
+                  {SHIFT_LABELS[s]}
+                </button>
               ))}
             </div>
             <div className="flex items-center gap-2 ml-4">
@@ -371,7 +371,7 @@ export default function CierreCajaPage() {
           {/* Grid 5 columnas */}
           <div className="grid grid-cols-5 gap-3 items-start">
 
-            {/* COL 1 — Efectivo en Caja */}
+            {/* COL 1 — Efectivo */}
             <Col title="Efectivo en Caja">
               <div className="grid grid-cols-3 gap-1 pb-1 border-b border-white/10">
                 <span className="text-white/40 text-xs font-semibold">Billete</span>
@@ -380,12 +380,12 @@ export default function CierreCajaPage() {
               </div>
               {billCounts.map((b, i) => (
                 <div key={b.denomination} className="grid grid-cols-3 gap-1 items-center">
-                  <span className="text-white/70 text-xs">${(b.denomination >= 1000 ? b.denomination / 1000 + 'k' : b.denomination)}</span>
+                  <span className="text-white/70 text-xs">${b.denomination >= 1000 ? b.denomination / 1000 + 'k' : b.denomination}</span>
                   <input
                     ref={el => { billRefs.current[i] = el }}
                     type="number" min="0" value={b.quantity}
                     onChange={e => setBillCounts(prev => prev.map((x, j) => j === i ? { ...x, quantity: e.target.value } : x))}
-                    onKeyDown={e => handleBillKeyDown(e, i)}
+                    onKeyDown={e => onBillEnter(e, i)}
                     placeholder="0"
                     className="bg-white/10 border border-white/15 rounded-md px-1 py-1 text-white text-xs text-center focus:outline-none focus:border-yellow-400/70 focus:bg-white/15 transition-all w-full"
                   />
@@ -406,10 +406,9 @@ export default function CierreCajaPage() {
                     ref={el => { puveTransRefs.current[i] = el }}
                     type="number" min="0" value={t.amount}
                     onChange={e => setPuveTransfers(prev => prev.map((x, j) => j === i ? { amount: e.target.value } : x))}
-                    onKeyDown={e => handlePuveTransKeyDown(e, i)}
+                    onKeyDown={e => onPuveTransEnter(e, i)}
                     placeholder="$ valor"
-                    className={inputCls}
-                    autoFocus={i === puveTransfers.length - 1 && i > 0}
+                    className={inp}
                   />
                   {puveTransfers.length > 1 && (
                     <button onClick={() => setPuveTransfers(prev => prev.filter((_, j) => j !== i))}
@@ -420,12 +419,10 @@ export default function CierreCajaPage() {
               <TotalRow label="Total transf. Puve" value={puveTransTotal} />
             </Col>
 
-            {/* COL 3 — Pedidos Didi */}
+            {/* COL 3 — Didi */}
             <Col title="Pedidos Didi">
-              <p className="text-white/30 text-xs pb-1">Pedidos no registrados en Puve</p>
-              {didiOrders.length === 0 && (
-                <p className="text-white/20 text-xs text-center py-2">Sin pedidos Didi</p>
-              )}
+              <p className="text-white/30 text-xs pb-1">↵ Enter pasa al siguiente campo</p>
+              {didiOrders.length === 0 && <p className="text-white/20 text-xs text-center py-2">Sin pedidos Didi</p>}
               {didiOrders.map((o, i) => (
                 <div key={i} className="bg-white/5 rounded-lg p-2 space-y-1.5 border border-white/8">
                   <div className="flex items-center justify-between">
@@ -433,68 +430,45 @@ export default function CierreCajaPage() {
                     <button onClick={() => setDidiOrders(prev => prev.filter((_, j) => j !== i))}
                       className="text-red-400/40 hover:text-red-400 text-xs transition-all">✕</button>
                   </div>
-                  <input type="text" value={o.order_id} placeholder="No. pedido Didi"
+                  <input
+                    ref={el => { didiIdRefs.current[i] = el }}
+                    type="text" value={o.order_id} placeholder="No. pedido Didi"
                     onChange={e => setDidiOrders(prev => prev.map((x, j) => j === i ? { ...x, order_id: e.target.value } : x))}
-                    className={inputCls} />
+                    onKeyDown={e => onDidiIdEnter(e, i)}
+                    className={inp} />
                   <input
                     ref={el => { didiCashRefs.current[i] = el }}
                     type="number" min="0" value={o.cash} placeholder="$ efectivo"
                     onChange={e => setDidiOrders(prev => prev.map((x, j) => j === i ? { ...x, cash: e.target.value } : x))}
-                    onKeyDown={e => handleDidiCashKeyDown(e, i)}
-                    className={inputCls}
-                  />
-                  {/* Transferencias del pedido Didi */}
-                  {o.transfers.map((t, ti) => {
-                    const didiTransRefs = { current: [] as (HTMLInputElement | null)[] }
-                    return (
-                      <div key={ti} className="flex gap-1">
-                        <input
-                          type="number" min="0" value={t.amount} placeholder="$ transf."
-                          onChange={e => setDidiOrders(prev => prev.map((x, j) => j === i
-                            ? { ...x, transfers: x.transfers.map((tt, tj) => tj === ti ? { amount: e.target.value } : tt) }
-                            : x))}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault()
-                              if (ti === o.transfers.length - 1) {
-                                setDidiOrders(prev => prev.map((x, j) => j === i
-                                  ? { ...x, transfers: [...x.transfers, { amount: '' }] } : x))
-                              }
-                            }
-                          }}
-                          className={inputCls}
-                        />
-                        <button onClick={() => setDidiOrders(prev => prev.map((x, j) => j === i
-                          ? { ...x, transfers: x.transfers.filter((_, tj) => tj !== ti) } : x))}
-                          className="text-red-400/40 hover:text-red-400 text-xs px-1 flex-shrink-0 transition-all">✕</button>
-                      </div>
-                    )
-                  })}
-                  <button onClick={() => setDidiOrders(prev => prev.map((x, j) => j === i
-                    ? { ...x, transfers: [...x.transfers, { amount: '' }] } : x))}
-                    className="w-full text-xs text-white/25 hover:text-yellow-400/50 border border-dashed border-white/10 hover:border-yellow-400/30 rounded-md py-0.5 transition-all">
-                    + transf.
-                  </button>
+                    onKeyDown={e => onDidiCashEnter(e, i)}
+                    className={inp} />
+                  {o.transfers.map((t, ti) => (
+                    <div key={ti} className="flex gap-1">
+                      <input type="number" min="0" value={t.amount} placeholder="$ transf."
+                        onChange={e => setDidiOrders(prev => prev.map((x, j) => j === i ? { ...x, transfers: x.transfers.map((tt, tj) => tj === ti ? { amount: e.target.value } : tt) } : x))}
+                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (ti === o.transfers.length - 1) setDidiOrders(prev => prev.map((x, j) => j === i ? { ...x, transfers: [...x.transfers, { amount: '' }] } : x)) } }}
+                        className={inp} />
+                      <button onClick={() => setDidiOrders(prev => prev.map((x, j) => j === i ? { ...x, transfers: x.transfers.filter((_, tj) => tj !== ti) } : x))}
+                        className="text-red-400/40 hover:text-red-400 text-xs px-1 flex-shrink-0">✕</button>
+                    </div>
+                  ))}
+                  <button onClick={() => setDidiOrders(prev => prev.map((x, j) => j === i ? { ...x, transfers: [...x.transfers, { amount: '' }] } : x))}
+                    className="w-full text-xs text-white/25 hover:text-yellow-400/50 border border-dashed border-white/10 rounded-md py-0.5 transition-all">+ transf.</button>
                   <div className="flex justify-between text-xs pt-1 border-t border-white/10">
                     <span className="text-white/40">Subtotal</span>
-                    <span className="text-white font-semibold">
-                      {formatCOP(n(o.cash) + o.transfers.reduce((s, t) => s + n(t.amount), 0))}
-                    </span>
+                    <span className="text-white font-semibold">{formatCOP(n(o.cash) + o.transfers.reduce((s, t) => s + n(t.amount), 0))}</span>
                   </div>
                 </div>
               ))}
-              <button onClick={() => {
-                setDidiOrders(prev => [...prev, { order_id: '', cash: '', transfers: [] }])
-                setTimeout(() => didiCashRefs.current[didiOrders.length]?.focus(), 50)
-              }}
+              <button onClick={() => { setDidiOrders(prev => [...prev, { order_id: '', cash: '', transfers: [] }]); setTimeout(() => didiIdRefs.current[didiOrders.length]?.focus(), 30) }}
                 className="w-full py-1.5 text-xs text-white/30 hover:text-yellow-400/60 border border-dashed border-white/15 hover:border-yellow-400/30 rounded-lg transition-all">
                 + agregar pedido Didi
               </button>
               {didiOrders.length > 0 && (
                 <>
-                  <TotalRow label="Didi efectivo"    value={didiCash}       border={false} color="text-white" />
-                  <TotalRow label="Didi transf."     value={didiTransTotal} border={false} color="text-white" />
-                  <TotalRow label="Total Didi"       value={didiCash + didiTransTotal} />
+                  <TotalRow label="Didi efectivo"  value={didiCash}                  border={false} color="text-white" />
+                  <TotalRow label="Didi transf."   value={didiTransTotal}            border={false} color="text-white" />
+                  <TotalRow label="Total Didi"     value={didiCash + didiTransTotal} />
                 </>
               )}
             </Col>
@@ -509,51 +483,41 @@ export default function CierreCajaPage() {
                     ref={el => { whatsappRefs.current[i] = el }}
                     type="number" min="0" value={o.amount} placeholder="$ valor"
                     onChange={e => setWhatsappOrders(prev => prev.map((x, j) => j === i ? { amount: e.target.value } : x))}
-                    onKeyDown={e => handleWhatsappKeyDown(e, i)}
-                    className={inputCls}
-                  />
+                    onKeyDown={e => onWhatsappEnter(e, i)}
+                    className={inp} />
                   <button onClick={() => setWhatsappOrders(prev => prev.filter((_, j) => j !== i))}
-                    className="text-red-400/40 hover:text-red-400 text-xs px-1 flex-shrink-0 transition-all">✕</button>
+                    className="text-red-400/40 hover:text-red-400 text-xs px-1 flex-shrink-0">✕</button>
                 </div>
               ))}
-              <button onClick={() => {
-                setWhatsappOrders(prev => [...prev, { amount: '' }])
-                setTimeout(() => whatsappRefs.current[whatsappOrders.length]?.focus(), 50)
-              }}
-                className="w-full py-1 text-xs text-white/25 hover:text-yellow-400/50 border border-dashed border-white/10 hover:border-yellow-400/30 rounded-lg transition-all">
-                + agregar
-              </button>
+              <button onClick={() => { setWhatsappOrders(prev => [...prev, { amount: '' }]); setTimeout(() => whatsappRefs.current[whatsappOrders.length]?.focus(), 30) }}
+                className="w-full py-1 text-xs text-white/25 hover:text-yellow-400/50 border border-dashed border-white/10 rounded-lg transition-all">+ agregar</button>
               {whatsappTotal > 0 && <TotalRow label="Total WhatsApp" value={whatsappTotal} />}
 
-              {/* Cancelados */}
               <div className="border-t border-white/10 pt-2 mt-1">
                 <p className="text-white/40 text-xs font-semibold mb-1">Cancelados / Error Puve</p>
-                <p className="text-white/25 text-xs mb-1.5">↵ Enter en valor para agregar otro</p>
+                <p className="text-white/25 text-xs mb-1">↵ Factura → Valor → nuevo ítem</p>
                 {cancelledOrders.map((o, i) => (
                   <div key={i} className="space-y-1 mb-2">
                     <div className="flex gap-1">
-                      <input type="text" value={o.invoice} placeholder="No. factura"
+                      <input
+                        ref={el => { cancelInvRefs.current[i] = el }}
+                        type="text" value={o.invoice} placeholder="No. factura"
                         onChange={e => setCancelledOrders(prev => prev.map((x, j) => j === i ? { ...x, invoice: e.target.value } : x))}
-                        className={inputCls} />
+                        onKeyDown={e => onCancelInvEnter(e, i)}
+                        className={inp} />
                       <button onClick={() => setCancelledOrders(prev => prev.filter((_, j) => j !== i))}
-                        className="text-red-400/40 hover:text-red-400 text-xs px-1 flex-shrink-0 transition-all">✕</button>
+                        className="text-red-400/40 hover:text-red-400 text-xs px-1 flex-shrink-0">✕</button>
                     </div>
                     <input
                       ref={el => { cancelAmtRefs.current[i] = el }}
                       type="number" min="0" value={o.amount} placeholder="$ valor"
                       onChange={e => setCancelledOrders(prev => prev.map((x, j) => j === i ? { ...x, amount: e.target.value } : x))}
-                      onKeyDown={e => handleCancelKeyDown(e, i)}
-                      className={inputCls}
-                    />
+                      onKeyDown={e => onCancelAmtEnter(e, i)}
+                      className={inp} />
                   </div>
                 ))}
-                <button onClick={() => {
-                  setCancelledOrders(prev => [...prev, { invoice: '', amount: '' }])
-                  setTimeout(() => cancelAmtRefs.current[cancelledOrders.length]?.focus(), 50)
-                }}
-                  className="w-full py-1 text-xs text-white/25 hover:text-yellow-400/50 border border-dashed border-white/10 hover:border-yellow-400/30 rounded-lg transition-all">
-                  + agregar
-                </button>
+                <button onClick={() => { setCancelledOrders(prev => [...prev, { invoice: '', amount: '' }]); setTimeout(() => cancelInvRefs.current[cancelledOrders.length]?.focus(), 30) }}
+                  className="w-full py-1 text-xs text-white/25 hover:text-yellow-400/50 border border-dashed border-white/10 rounded-lg transition-all">+ agregar</button>
                 {cancelledTotal > 0 && <TotalRow label="Total cancelados (−)" value={cancelledTotal} color="text-red-400" />}
               </div>
             </Col>
@@ -561,44 +525,41 @@ export default function CierreCajaPage() {
             {/* COL 5 — Proveedores + Resumen */}
             <Col title="Proveedores / Cierre">
               <p className="text-white/40 text-xs font-semibold">Pagos a proveedores</p>
-              <p className="text-white/25 text-xs">↵ Enter en valor para agregar otro</p>
+              <p className="text-white/25 text-xs">↵ Descripción → Valor → nuevo pago</p>
               {supplierPayments.map((o, i) => (
                 <div key={i} className="space-y-1 mb-2">
                   <div className="flex gap-1">
-                    <input type="text" value={o.description} placeholder="Descripción"
+                    <input
+                      ref={el => { supplierDescRefs.current[i] = el }}
+                      type="text" value={o.description} placeholder="Descripción"
                       onChange={e => setSupplierPayments(prev => prev.map((x, j) => j === i ? { ...x, description: e.target.value } : x))}
-                      className={inputCls} />
+                      onKeyDown={e => onSupplierDescEnter(e, i)}
+                      className={inp} />
                     <button onClick={() => setSupplierPayments(prev => prev.filter((_, j) => j !== i))}
-                      className="text-red-400/40 hover:text-red-400 text-xs px-1 flex-shrink-0 transition-all">✕</button>
+                      className="text-red-400/40 hover:text-red-400 text-xs px-1 flex-shrink-0">✕</button>
                   </div>
                   <input
                     ref={el => { supplierAmtRefs.current[i] = el }}
                     type="number" min="0" value={o.amount} placeholder="$ valor"
                     onChange={e => setSupplierPayments(prev => prev.map((x, j) => j === i ? { ...x, amount: e.target.value } : x))}
-                    onKeyDown={e => handleSupplierKeyDown(e, i)}
-                    className={inputCls}
-                  />
+                    onKeyDown={e => onSupplierAmtEnter(e, i)}
+                    className={inp} />
                 </div>
               ))}
-              <button onClick={() => {
-                setSupplierPayments(prev => [...prev, { description: '', amount: '' }])
-                setTimeout(() => supplierAmtRefs.current[supplierPayments.length]?.focus(), 50)
-              }}
-                className="w-full py-1 text-xs text-white/25 hover:text-yellow-400/50 border border-dashed border-white/10 hover:border-yellow-400/30 rounded-lg transition-all">
-                + agregar
-              </button>
+              <button onClick={() => { setSupplierPayments(prev => [...prev, { description: '', amount: '' }]); setTimeout(() => supplierDescRefs.current[supplierPayments.length]?.focus(), 30) }}
+                className="w-full py-1 text-xs text-white/25 hover:text-yellow-400/50 border border-dashed border-white/10 rounded-lg transition-all">+ agregar</button>
               {supplierTotal > 0 && <TotalRow label="Total proveedores (−)" value={supplierTotal} color="text-red-400" />}
 
-              {/* Resumen cierre */}
+              {/* Resumen */}
               <div className="border-t border-white/10 pt-3 mt-2 space-y-1.5">
                 <p className="text-yellow-400 text-xs font-bold mb-2">RESUMEN CIERRE</p>
                 {[
-                  { label: 'Efectivo contado',  value: cashCounted,    color: 'text-white' },
-                  { label: 'Transf. Puve',      value: puveTransTotal, color: 'text-white' },
+                  { label: 'Efectivo contado',  value: cashCounted,              color: 'text-white' },
+                  { label: 'Transf. Puve',      value: puveTransTotal,           color: 'text-white' },
                   { label: 'Didi',              value: didiCash + didiTransTotal, color: 'text-white' },
-                  { label: 'WhatsApp',          value: whatsappTotal,  color: 'text-white' },
-                  { label: 'Cancelados (−)',     value: cancelledTotal, color: 'text-red-400' },
-                  { label: 'Proveedores (−)',    value: supplierTotal,  color: 'text-red-400' },
+                  { label: 'WhatsApp',          value: whatsappTotal,            color: 'text-white' },
+                  { label: 'Cancelados (−)',    value: cancelledTotal,           color: 'text-red-400' },
+                  { label: 'Proveedores (−)',   value: supplierTotal,            color: 'text-red-400' },
                 ].map(row => (
                   <div key={row.label} className="flex justify-between text-xs">
                     <span className="text-white/50">{row.label}</span>
@@ -617,32 +578,25 @@ export default function CierreCajaPage() {
                   <span className="text-white/80">Diferencia</span>
                   <DiffBadge diff={difference} />
                 </div>
-
                 <div className="pt-1">
                   <label className="text-white/40 text-xs font-semibold block mb-1">Entregar al dueño</label>
-                  <input type="number" min="0" value={cashToOwner} onChange={e => setCashToOwner(e.target.value)}
-                    placeholder="0"
+                  <input type="number" min="0" value={cashToOwner} onChange={e => setCashToOwner(e.target.value)} placeholder="0"
                     className="w-full bg-white/10 border border-white/15 rounded-lg px-2 py-1.5 text-white text-sm font-bold focus:outline-none focus:border-yellow-400/60 transition-all" />
                 </div>
-
                 {nextBase !== null && (
                   <div className="flex justify-between text-xs bg-emerald-500/10 border border-emerald-400/20 rounded-lg px-2 py-1.5">
                     <span className="text-emerald-300/80 font-bold">Base sig. día</span>
                     <span className="text-emerald-400 font-bold">{formatCOP(nextBase)}</span>
                   </div>
                 )}
-
                 {needsNote && (
                   <div>
-                    <label className="text-white/40 text-xs font-semibold block mb-1">
-                      Nota descuadre <span className="text-red-400">*</span>
-                    </label>
+                    <label className="text-white/40 text-xs font-semibold block mb-1">Nota descuadre <span className="text-red-400">*</span></label>
                     <textarea rows={2} value={differenceNote} onChange={e => setDifferenceNote(e.target.value)}
                       placeholder="Explica la diferencia..."
                       className="w-full bg-white/10 border border-white/15 rounded-lg px-2 py-1.5 text-white text-xs focus:outline-none focus:border-yellow-400/60 resize-none transition-all" />
                   </div>
                 )}
-
                 <button onClick={handleSubmit} disabled={saving} className="btn-primary w-full !py-2 !text-sm mt-1">
                   {saving ? 'Guardando...' : '✓ Enviar cierre'}
                 </button>
@@ -652,23 +606,17 @@ export default function CierreCajaPage() {
         </div>
       )}
 
-      {/* ── HISTORIAL ── */}
+      {/* HISTORIAL */}
       {activeTab === 'historial' && (
         <div className="space-y-3">
           {registers.length === 0 ? (
-            <div className="card text-center py-10">
-              <p className="text-4xl mb-3">🧾</p>
-              <p className="text-white/50 text-sm">No hay cierres registrados aún</p>
-            </div>
+            <div className="card text-center py-10"><p className="text-4xl mb-3">🧾</p><p className="text-white/50 text-sm">No hay cierres registrados aún</p></div>
           ) : registers.map(r => (
-            <div key={r.id} className="card cursor-pointer"
-              onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}>
+            <div key={r.id} className="card cursor-pointer" onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}>
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-white font-semibold text-sm">{SHIFT_LABELS[r.shift]}</p>
-                  <p className="text-muted text-xs mt-0.5">
-                    {format(parseISO(r.register_date), "d 'de' MMMM, yyyy", { locale: es })}
-                  </p>
+                  <p className="text-muted text-xs mt-0.5">{format(parseISO(r.register_date), "d 'de' MMMM, yyyy", { locale: es })}</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="text-right">
@@ -679,36 +627,29 @@ export default function CierreCajaPage() {
                   <span className="text-white/30 text-xs">{expandedId === r.id ? '▲' : '▼'}</span>
                 </div>
               </div>
-
               {expandedId === r.id && (
-                <div className="mt-4 pt-4 border-t border-white/10 grid grid-cols-4 gap-3 text-xs">
+                <div className="mt-4 pt-4 border-t border-white/10 grid grid-cols-4 gap-3">
                   {[
-                    ['Base recibida',      r.opening_fund],
-                    ['Efectivo contado',   r.cash_counted],
-                    ['Transf. Puve',       r.puve_transfer],
-                    ['Didi efectivo',      r.didi_cash_total],
-                    ['Didi transf.',       r.didi_transfer_total],
-                    ['WhatsApp',           r.whatsapp_total],
-                    ['Cancelados (−)',     r.cancelled_total],
-                    ['Proveedores (−)',    r.supplier_total],
-                    ['Total ventas real',  r.total_real_sales],
-                    ['Efectivo esperado',  r.expected_cash],
-                    ['Entregado al dueño', r.cash_to_owner],
-                    ['Base sig. día',      r.next_base],
+                    ['Base recibida', r.opening_fund], ['Efectivo contado', r.cash_counted],
+                    ['Transf. Puve', r.puve_transfer], ['Didi efectivo', r.didi_cash_total],
+                    ['Didi transf.', r.didi_transfer_total], ['WhatsApp', r.whatsapp_total],
+                    ['Cancelados (−)', r.cancelled_total], ['Proveedores (−)', r.supplier_total],
+                    ['Total ventas real', r.total_real_sales], ['Efectivo esperado', r.expected_cash],
+                    ['Entregado al dueño', r.cash_to_owner], ['Base sig. día', r.next_base],
                   ].map(([label, value]) => (
                     <div key={String(label)} className="bg-white/5 rounded-xl px-3 py-2">
                       <p className="text-white/40 text-xs">{label}</p>
-                      <p className="text-white font-bold">{formatCOP(Number(value))}</p>
+                      <p className="text-white font-bold text-sm">{formatCOP(Number(value))}</p>
                     </div>
                   ))}
                   {r.bill_counts?.some(b => n(b.quantity) > 0) && (
                     <div className="col-span-2 bg-white/5 rounded-xl px-3 py-2">
                       <p className="text-white/40 text-xs font-semibold mb-2">Conteo de billetes</p>
-                      <div className="grid grid-cols-3 gap-1">
+                      <div className="grid grid-cols-4 gap-1">
                         {r.bill_counts.filter(b => n(b.quantity) > 0).map(b => (
-                          <div key={b.denomination} className="flex justify-between text-xs">
-                            <span className="text-white/50">${b.denomination >= 1000 ? b.denomination/1000 + 'k' : b.denomination}</span>
-                            <span className="text-white font-semibold">×{b.quantity}</span>
+                          <div key={b.denomination} className="text-xs flex gap-1">
+                            <span className="text-white/50">${b.denomination >= 1000 ? b.denomination / 1000 + 'k' : b.denomination}</span>
+                            <span className="text-white font-bold">×{b.quantity}</span>
                           </div>
                         ))}
                       </div>
@@ -728,9 +669,7 @@ export default function CierreCajaPage() {
                       <p className="text-white/80 text-xs">{r.difference_note}</p>
                     </div>
                   )}
-                  <p className="col-span-4 text-white/25 text-xs">
-                    Enviado {format(parseISO(r.submitted_at), "d MMM, HH:mm", { locale: es })}
-                  </p>
+                  <p className="col-span-4 text-white/25 text-xs">Enviado {format(parseISO(r.submitted_at), "d MMM, HH:mm", { locale: es })}</p>
                 </div>
               )}
             </div>
