@@ -96,6 +96,11 @@ export default function CierreCajaPage() {
   const [supplierPayments, setSupplierPayments] = useState<SupplierItem[]>([])
   const [cashToOwner, setCashToOwner]           = useState('')
   const [differenceNote, setDifferenceNote]     = useState('')
+  const [nextBaseOverride, setNextBaseOverride] = useState('')       // base modificada por el trabajador
+  const [baseChangeReason, setBaseChangeReason] = useState('')       // motivo del cambio
+  const [hasPendingBase, setHasPendingBase]     = useState(false)    // si el último tiene solicitud pendiente
+  const [hasPendingDiff, setHasPendingDiff]     = useState(false)    // si hay descuadre pendiente de aprobación
+  const [pendingDraft, setPendingDraft]         = useState<{id: string; difference: number; status: string} | null>(null)
 
   // Refs Enter
   const billRefs         = useRef<(HTMLInputElement | null)[]>([])
@@ -158,7 +163,7 @@ export default function CierreCajaPage() {
 
   // Autosave
   useEffect(() => {
-    saveDraft({ shift, openingFund, puveTotalReported, billCounts, puveTransfers, didiOrders, whatsappOrders, cancelledOrders, supplierPayments, cashToOwner, differenceNote })
+    saveDraft({ shift, openingFund, puveTotalReported, billCounts, puveTransfers, didiOrders, whatsappOrders, cancelledOrders, supplierPayments, cashToOwner, differenceNote, nextBaseOverride, baseChangeReason })
   }, [shift, openingFund, puveTotalReported, billCounts, puveTransfers, didiOrders, whatsappOrders, cancelledOrders, supplierPayments, cashToOwner, differenceNote])
 
   const loadData = useCallback(async () => {
@@ -170,6 +175,17 @@ export default function CierreCajaPage() {
     const res  = await fetch('/api/worker/cash-register?worker_id=' + w.id)
     const json = await res.json()
     setRegisters(json.registers || [])
+    setHasPendingBase(json.hasPendingBaseRequest || false)
+    setHasPendingDiff(json.hasPendingDifference || false)
+    // Verificar si hay borrador pendiente de aprobación
+    const draftRes  = await fetch('/api/worker/cash-register-draft?worker_id=' + w.id)
+    const draftJson = await draftRes.json()
+    if (draftJson.draft?.status === 'pending_approval') {
+      setPendingDraft(draftJson.draft)
+      setHasPendingDiff(true)
+    } else {
+      setPendingDraft(null)
+    }
     if (json.suggestedBase > 0 && !loadDraft()?.openingFund) {
       setSuggestedBase(json.suggestedBase)
       setOpeningFund(String(json.suggestedBase))
@@ -191,6 +207,7 @@ export default function CierreCajaPage() {
     setDidiOrders([]); setWhatsappOrders([])
     setCancelledOrders([]); setSupplierPayments([])
     setCashToOwner(''); setDifferenceNote('')
+    setNextBaseOverride(''); setBaseChangeReason('')
     setDraftRestored(false); clearDraft()
   }
 
@@ -240,10 +257,12 @@ export default function CierreCajaPage() {
 
   async function handleSubmit() {
     if (!worker) return
+    if (hasPendingDiff) { showMsg('error', 'Tienes un descuadre pendiente de aprobación. Espera que el admin lo revise.'); return }
     if (cashCounted === 0)  { showMsg('error', 'Registra el conteo de billetes'); return }
     if (!puveTotalReported) { showMsg('error', 'Ingresa el Total ventas Puve'); return }
     if (cashToOwner === '') { showMsg('error', 'Ingresa cuánto vas a dejar en el sobre'); return }
     if (needsNote && !differenceNote.trim()) { showMsg('error', 'Hay un descuadre — la nota es obligatoria antes de enviar'); return }
+    if (hasBaseChange && !baseChangeReason.trim()) { showMsg('error', 'Modificaste la base — debes escribir el motivo para solicitar aprobación del admin'); return }
     setSaving(true)
     const res = await fetch('/api/worker/cash-register', {
       method: 'POST',
@@ -261,6 +280,8 @@ export default function CierreCajaPage() {
         cash_counted:        cashCounted,
         cash_to_owner:       n(cashToOwner),
         difference_note:     differenceNote.trim() || null,
+        next_base_requested: hasBaseChange ? n(nextBaseOverride) : undefined,
+        base_change_reason:  hasBaseChange ? baseChangeReason.trim() : undefined,
         bill_counts:         billCounts,
         puve_transfers:      puveTransfers,
       }),
@@ -304,6 +325,22 @@ export default function CierreCajaPage() {
 
       {activeTab === 'form' && (
         <div className="space-y-3">
+          {/* Bloqueo por borrador pendiente de aprobación */}
+          {pendingDraft && (
+            <div className="rounded-2xl px-4 py-4 border bg-orange-500/15 border-orange-400/30 space-y-2">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">⏳</span>
+                <div>
+                  <p className="text-orange-300 font-bold text-sm">Cierre en espera de aprobación</p>
+                  <p className="text-orange-400/70 text-xs mt-0.5">
+                    Enviaste un cierre con descuadre de <span className="font-bold text-orange-300">{cop(Math.abs(pendingDraft.difference))}</span>.
+                    El admin debe revisarlo antes de que puedas registrar otro cierre.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {draftRestored && (
             <div className="rounded-2xl px-4 py-2 text-xs font-semibold border bg-purple-500/20 border-purple-400/30 text-purple-200 flex items-center gap-2">
               <span>⚡</span><span>Borrador recuperado — continuás donde lo dejaste.</span>
@@ -471,7 +508,7 @@ export default function CierreCajaPage() {
                 )}
 
                 <Divider />
-                <p className="text-white/40 text-xs font-semibold">Cancelados / Error Puve</p>
+                <p className="text-white/40 text-xs font-semibold">Pedidos Cancelados ó Subidos por error</p>
                 <p className="text-white/25 text-xs">↵ Factura → Valor → nuevo</p>
                 {cancelledOrders.map((o, i) => (
                   <div key={i} className="space-y-1 mb-1">
@@ -493,7 +530,7 @@ export default function CierreCajaPage() {
                   className="w-full py-1 text-xs text-white/25 hover:text-yellow-400/50 border border-dashed border-white/10 rounded-lg transition-all">+ agregar</button>
                 {cancelledTotal > 0 && (
                   <div className="border-t border-white/15 mt-1 pt-1">
-                    <Row label="Cancelados (se restan)" value={cancelledTotal} color="text-red-400" bold />
+                    <Row label="Cancelados/Error (se restan)" value={cancelledTotal} color="text-red-400" bold />
                   </div>
                 )}
               </Col>
@@ -543,7 +580,7 @@ export default function CierreCajaPage() {
                 <Row label="+ Didi efectivo"   value={didiCash}       color="text-white" />
                 <Row label="+ Didi transf."    value={didiTransTotal} color="text-white" />
                 <Row label="+ WhatsApp"        value={whatsappTotal}  color="text-white" />
-                <Row label="− Cancelados"      value={cancelledTotal} color="text-red-400" />
+                <Row label="− Cancelados/Error"      value={cancelledTotal} color="text-red-400" />
                 <Divider />
                 <Row label="Total ventas real" value={totalRealSales} color="text-yellow-400" bold />
 
@@ -581,10 +618,50 @@ export default function CierreCajaPage() {
                     className="w-full bg-white/10 border border-white/15 rounded-lg px-2 py-1.5 text-white text-sm font-bold focus:outline-none focus:border-yellow-400/60 transition-all" />
                 </div>
 
+                {/* Base siguiente día — bloqueada, solo lectura */}
                 {nextBase !== null && (
-                  <div className="flex justify-between text-xs bg-emerald-500/10 border border-emerald-400/20 rounded-lg px-2 py-1.5">
-                    <span className="text-emerald-300/80 font-bold">Base sig. día</span>
-                    <span className="text-emerald-400 font-bold">{cop(nextBase)}</span>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-xs bg-emerald-500/10 border border-emerald-400/20 rounded-lg px-2 py-1.5">
+                      <span className="text-emerald-300/80 font-bold">Base sig. día (calculada)</span>
+                      <span className="text-emerald-400 font-bold">{cop(nextBase)}</span>
+                    </div>
+                    {/* Solicitud de cambio de base */}
+                    {hasPendingBase && (
+                      <div className="bg-yellow-400/10 border border-yellow-400/20 rounded-lg px-2 py-2">
+                        <p className="text-yellow-300 text-xs font-bold">⏳ Tienes una solicitud de base pendiente</p>
+                        <p className="text-white/50 text-xs mt-0.5">El admin debe aprobarla. Ingresa la base manualmente.</p>
+                      </div>
+                    )}
+                    <button
+                      onClick={() => setNextBaseOverride(prev => prev === '' ? String(nextBase) : '')}
+                      className="w-full text-xs text-white/30 hover:text-yellow-400/50 border border-dashed border-white/10 hover:border-yellow-400/30 rounded-lg py-1 transition-all">
+                      {nextBaseOverride !== '' ? '✕ Cancelar solicitud de cambio' : '✏ Solicitar cambio de base'}
+                    </button>
+                    {nextBaseOverride !== '' && (
+                      <div className="space-y-1.5 bg-yellow-400/5 border border-yellow-400/20 rounded-lg p-2">
+                        <p className="text-yellow-300 text-xs font-bold">Solicitud de cambio de base</p>
+                        <div>
+                          <label className="text-white/40 text-xs block mb-1">Nueva base solicitada</label>
+                          <input type="number" min="0" value={nextBaseOverride}
+                            onChange={e => setNextBaseOverride(e.target.value)}
+                            className="w-full bg-white/10 border border-yellow-400/30 rounded-lg px-2 py-1.5 text-white text-sm font-bold focus:outline-none focus:border-yellow-400/60 transition-all" />
+                        </div>
+                        {hasBaseChange && (
+                          <p className="text-yellow-300/70 text-xs">
+                            Diferencia: {cop(Math.abs(n(nextBaseOverride) - (nextBase || 0)))}
+                            {n(nextBaseOverride) > (nextBase || 0) ? ' más' : ' menos'} de lo calculado
+                          </p>
+                        )}
+                        <div>
+                          <label className="text-white/40 text-xs block mb-1">Motivo <span className="text-red-400">*</span></label>
+                          <textarea rows={2} value={baseChangeReason}
+                            onChange={e => setBaseChangeReason(e.target.value)}
+                            placeholder="Explica por qué necesitas una base diferente..."
+                            className="w-full bg-white/10 border border-white/15 rounded-lg px-2 py-1.5 text-white text-xs focus:outline-none focus:border-yellow-400/60 resize-none transition-all" />
+                        </div>
+                        <p className="text-white/30 text-xs">El admin revisará y aprobará o rechazará esta solicitud.</p>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -597,7 +674,7 @@ export default function CierreCajaPage() {
                   </div>
                 )}
 
-                <button onClick={handleSubmit} disabled={saving} className="btn-primary w-full !py-2 !text-sm">
+                <button onClick={handleSubmit} disabled={saving || hasPendingDiff} className={`btn-primary w-full !py-2 !text-sm ${hasPendingDiff ? "opacity-40 cursor-not-allowed" : ""}`}>
                   {saving ? 'Guardando...' : '✓ Enviar cierre'}
                 </button>
               </Col>
@@ -638,7 +715,7 @@ export default function CierreCajaPage() {
                     ['Didi efectivo',       r.didi_cash_total],
                     ['Didi transf.',        r.didi_transfer_total],
                     ['WhatsApp',            r.whatsapp_total],
-                    ['Cancelados (−)',      r.cancelled_total],
+                    ['Cancelados/Error (−)',      r.cancelled_total],
                     ['Proveedores (−)',     r.supplier_total],
                     ['Total ventas real',   r.total_real_sales],
                     ['Efectivo esperado',   r.expected_cash],

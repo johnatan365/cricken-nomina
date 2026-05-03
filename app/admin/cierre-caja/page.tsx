@@ -4,6 +4,35 @@ import { useState, useEffect, useCallback } from 'react'
 import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns'
 import { es } from 'date-fns/locale'
 
+type DifferenceRequest = {
+  id: string
+  worker_name: string
+  shift: 'morning' | 'afternoon'
+  register_date: string
+  difference: number
+  difference_note: string | null
+  total_real_sales: number
+  expected_cash: number
+  cash_counted: number
+  status: string
+  created_at: string
+}
+
+type BaseChangeRequest = {
+  id: string
+  cash_register_id: string
+  worker_name: string
+  shift: 'morning' | 'afternoon'
+  register_date: string
+  base_calculated: number
+  base_requested: number
+  difference: number
+  reason: string
+  status: 'pending' | 'approved' | 'rejected'
+  admin_note: string | null
+  created_at: string
+}
+
 type CashRegister = {
   id: string
   worker_name: string
@@ -43,6 +72,12 @@ export default function AdminCierreCajaPage() {
   const [workerFilter, setWorkerFilter] = useState('')
   const [expanded, setExpanded]       = useState<string | null>(null)
   const [onlyIssues, setOnlyIssues]   = useState(false)
+  const [baseRequests, setBaseRequests] = useState<BaseChangeRequest[]>([])
+  const [processingId, setProcessingId] = useState<string | null>(null)
+  const [adminNotes, setAdminNotes]         = useState<Record<string, string>>({})
+  const [diffRequests, setDiffRequests]     = useState<DifferenceRequest[]>([])
+  const [diffNotes, setDiffNotes]           = useState<Record<string, string>>({})
+  const [processingDiffId, setProcessingDiffId] = useState<string | null>(null)
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -54,6 +89,46 @@ export default function AdminCierreCajaPage() {
     setRegisters(json.registers || [])
     setLoading(false)
   }, [dateFrom, dateTo, shiftFilter, workerFilter])
+
+  const loadDiffRequests = useCallback(async () => {
+    const res  = await fetch('/api/admin/cash-register-drafts')
+    const json = await res.json()
+    setDiffRequests(json.drafts || [])
+  }, [])
+
+  useEffect(() => { loadDiffRequests() }, [loadDiffRequests])
+
+  async function resolveDiff(id: string, action: 'approved' | 'rejected') {
+    setProcessingDiffId(id)
+    await fetch('/api/admin/cash-register-drafts', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, action, admin_note: diffNotes[id] || null }),
+    })
+    setProcessingDiffId(null)
+    loadDiffRequests()
+    loadData()
+  }
+
+  const loadBaseRequests = useCallback(async () => {
+    const res  = await fetch('/api/admin/base-change-requests?status=pending')
+    const json = await res.json()
+    setBaseRequests(json.requests || [])
+  }, [])
+
+  useEffect(() => { loadBaseRequests() }, [loadBaseRequests])
+
+  async function resolveRequest(id: string, status: 'approved' | 'rejected') {
+    setProcessingId(id)
+    await fetch('/api/admin/base-change-requests', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, status, admin_note: adminNotes[id] || null }),
+    })
+    setProcessingId(null)
+    loadBaseRequests()
+    loadData()
+  }
 
   useEffect(() => { loadData() }, [loadData])
 
@@ -81,7 +156,143 @@ export default function AdminCierreCajaPage() {
         <p className="text-muted mt-1">Cierres enviados por los trabajadores</p>
       </div>
 
-      {/* Alerta descuadres */}
+      {/* Panel borradores pendientes de aprobación */}
+      {diffRequests.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">⏳</span>
+            <p className="text-white font-bold text-sm">
+              {diffRequests.length} cierre{diffRequests.length > 1 ? 's' : ''} con descuadre esperando tu aprobación
+            </p>
+          </div>
+          <p className="text-white/40 text-xs">El trabajador está bloqueado y no puede registrar más cierres hasta que apruebes o rechaces.</p>
+          {diffRequests.map((req: DifferenceRequest) => (
+            <div key={req.id} className="rounded-2xl border border-orange-400/30 bg-orange-500/5 p-4 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-white font-bold text-sm">{req.worker_name}</p>
+                  <p className="text-white/50 text-xs mt-0.5">
+                    {SHIFT_LABELS[req.shift]} · {format(parseISO(req.register_date), "d MMM yyyy", { locale: es })}
+                  </p>
+                </div>
+                <span className={`text-xs px-2 py-1 rounded-full font-bold border ${
+                  req.difference > 0
+                    ? 'bg-yellow-400/20 text-yellow-300 border-yellow-400/30'
+                    : 'bg-red-500/20 text-red-300 border-red-400/30'
+                }`}>
+                  {req.difference > 0 ? '+' : ''}{cop(req.difference)}
+                </span>
+              </div>
+              {/* Resumen del cierre */}
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                {[
+                  ['Total ventas', req.total_real_sales],
+                  ['Efectivo esperado', req.expected_cash],
+                  ['Efectivo contado', req.cash_counted],
+                ].map(([label, value]) => (
+                  <div key={String(label)} className="bg-white/5 rounded-xl px-3 py-2">
+                    <p className="text-white/40">{label}</p>
+                    <p className="text-white font-bold">{cop(Number(value))}</p>
+                  </div>
+                ))}
+              </div>
+              {req.difference_note && (
+                <div className="bg-white/5 rounded-xl px-3 py-2">
+                  <p className="text-white/40 text-xs mb-1">Nota del trabajador</p>
+                  <p className="text-white text-sm">{req.difference_note}</p>
+                </div>
+              )}
+              <div>
+                <label className="text-white/40 text-xs block mb-1">Tu nota (opcional)</label>
+                <input type="text" value={diffNotes[req.id] || ''}
+                  onChange={e => setDiffNotes(prev => ({ ...prev, [req.id]: e.target.value }))}
+                  placeholder="Ej: Aprobado, hay cambio de turno..."
+                  className="w-full bg-white/10 border border-white/15 rounded-lg px-3 py-1.5 text-white text-xs focus:outline-none focus:border-yellow-400/60 transition-all" />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => resolveDiff(req.id, 'approved')}
+                  disabled={processingDiffId === req.id}
+                  className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 hover:bg-emerald-500/30 transition-all disabled:opacity-50">
+                  ✓ Aprobar y registrar cierre
+                </button>
+                <button
+                  onClick={() => resolveDiff(req.id, 'rejected')}
+                  disabled={processingDiffId === req.id}
+                  className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-red-500/20 text-red-300 border border-red-400/30 hover:bg-red-500/30 transition-all disabled:opacity-50">
+                  ✕ Rechazar
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Panel solicitudes de cambio de base */}
+      {baseRequests.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">🔐</span>
+            <p className="text-white font-bold text-sm">{baseRequests.length} solicitud{baseRequests.length > 1 ? 'es' : ''} de cambio de base pendiente{baseRequests.length > 1 ? 's' : ''}</p>
+          </div>
+          {baseRequests.map(req => (
+            <div key={req.id} className="rounded-2xl border border-yellow-400/30 bg-yellow-400/5 p-4 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-white font-bold text-sm">{req.worker_name}</p>
+                  <p className="text-white/50 text-xs mt-0.5">
+                    {SHIFT_LABELS[req.shift]} · {format(parseISO(req.register_date), "d MMM yyyy", { locale: es })}
+                  </p>
+                </div>
+                <span className="text-xs px-2 py-1 rounded-full bg-yellow-400/20 text-yellow-300 font-bold">⏳ Pendiente</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                <div className="bg-white/5 rounded-xl px-3 py-2">
+                  <p className="text-white/40">Base calculada</p>
+                  <p className="text-white font-bold">{cop(req.base_calculated)}</p>
+                </div>
+                <div className="bg-white/5 rounded-xl px-3 py-2">
+                  <p className="text-white/40">Base solicitada</p>
+                  <p className="text-yellow-400 font-bold">{cop(req.base_requested)}</p>
+                </div>
+                <div className="bg-white/5 rounded-xl px-3 py-2">
+                  <p className="text-white/40">Diferencia</p>
+                  <p className={`font-bold ${req.difference > 0 ? 'text-yellow-400' : 'text-red-400'}`}>
+                    {req.difference > 0 ? '+' : ''}{cop(req.difference)}
+                  </p>
+                </div>
+              </div>
+              <div className="bg-white/5 rounded-xl px-3 py-2">
+                <p className="text-white/40 text-xs mb-1">Motivo del trabajador</p>
+                <p className="text-white text-sm">{req.reason}</p>
+              </div>
+              <div>
+                <label className="text-white/40 text-xs block mb-1">Nota del admin (opcional)</label>
+                <input type="text" value={adminNotes[req.id] || ''}
+                  onChange={e => setAdminNotes(prev => ({ ...prev, [req.id]: e.target.value }))}
+                  placeholder="Ej: Aprobado, hay cambio de turno..."
+                  className="w-full bg-white/10 border border-white/15 rounded-lg px-3 py-1.5 text-white text-xs focus:outline-none focus:border-yellow-400/60 transition-all" />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => resolveRequest(req.id, 'approved')}
+                  disabled={processingId === req.id}
+                  className="flex-1 py-2 rounded-xl text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 hover:bg-emerald-500/30 transition-all disabled:opacity-50">
+                  ✓ Aprobar
+                </button>
+                <button
+                  onClick={() => resolveRequest(req.id, 'rejected')}
+                  disabled={processingId === req.id}
+                  className="flex-1 py-2 rounded-xl text-xs font-bold bg-red-500/20 text-red-300 border border-red-400/30 hover:bg-red-500/30 transition-all disabled:opacity-50">
+                  ✕ Rechazar
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Alerta descuadres */}}
       {!loading && withIssues > 0 && (
         <div className="rounded-2xl px-4 py-3 border bg-red-500/15 border-red-400/30 flex items-center justify-between">
           <div className="flex items-center gap-3">
