@@ -73,7 +73,9 @@ export default function AdminCierreCajaPage() {
   const [expanded, setExpanded]       = useState<string | null>(null)
   const [onlyIssues, setOnlyIssues]   = useState(false)
   const [baseRequests, setBaseRequests] = useState<BaseChangeRequest[]>([])
-  const [processingId, setProcessingId] = useState<string | null>(null)
+  const [processingId, setProcessingId]   = useState<string | null>(null)
+  const [editingBase, setEditingBase]     = useState<Record<string, string>>({})
+  const [savingBase, setSavingBase]       = useState<string | null>(null)
   const [adminNotes, setAdminNotes]         = useState<Record<string, string>>({})
   const [diffRequests, setDiffRequests]     = useState<DifferenceRequest[]>([])
   const [diffNotes, setDiffNotes]           = useState<Record<string, string>>({})
@@ -117,6 +119,20 @@ export default function AdminCierreCajaPage() {
   }, [])
 
   useEffect(() => { loadBaseRequests() }, [loadBaseRequests])
+
+  async function saveBase(registerId: string) {
+    const newBase = editingBase[registerId]
+    if (!newBase) return
+    setSavingBase(registerId)
+    await fetch('/api/admin/cash-registers/edit-base', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: registerId, next_base: parseFloat(newBase) }),
+    })
+    setSavingBase(null)
+    setEditingBase(prev => { const n = {...prev}; delete n[registerId]; return n })
+    loadData()
+  }
 
   async function resolveRequest(id: string, status: 'approved' | 'rejected') {
     setProcessingId(id)
