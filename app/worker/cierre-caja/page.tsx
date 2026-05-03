@@ -31,7 +31,7 @@ type CashRegister  = {
 const n = (v: string | number) => parseFloat(String(v).replace(/\./g, '').replace(',', '.')) || 0
 const cop = (v: number) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v)
 const SHIFT_LABELS: Record<Shift, string> = { morning: '☀️ Turno Mañana', afternoon: '🌙 Turno Tarde' }
-const DRAFT_KEY = 'cricken_cierre_draft_v2'
+const DRAFT_KEY = 'cricken_cierre_draft_v3'
 
 function saveDraft(data: object) {
   try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...data, savedAt: new Date().toISOString() })) } catch {}
@@ -46,7 +46,7 @@ function clearDraft() {
 function Col({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col min-w-0">
-      <div className="bg-yellow-400 text-purple-900 font-bold text-xs text-center py-2 px-2 rounded-t-xl whitespace-nowrap">{title}</div>
+      <div className="bg-yellow-400 text-purple-900 font-bold text-xs text-center py-2 px-2 rounded-t-xl">{title}</div>
       <div className="bg-white/8 border border-white/10 border-t-0 rounded-b-xl flex-1 p-2.5 space-y-1.5">
         {children}
       </div>
@@ -54,19 +54,21 @@ function Col({ title, children }: { title: string; children: React.ReactNode }) 
   )
 }
 
-function TotalRow({ label, value, color = 'text-yellow-400', border = true }: { label: string; value: number; color?: string; border?: boolean }) {
+function Row({ label, value, color = 'text-white', bold = false }: { label: string; value: number; color?: string; bold?: boolean }) {
   return (
-    <div className={`flex justify-between items-center text-xs font-bold py-1 ${border ? 'border-t border-white/15 mt-1 pt-2' : ''}`}>
-      <span className="text-white/70">{label}</span>
-      <span className={color}>{cop(value)}</span>
+    <div className="flex justify-between items-center text-xs">
+      <span className={bold ? 'text-white/80 font-bold' : 'text-white/50'}>{label}</span>
+      <span className={`${color} ${bold ? 'font-bold' : 'font-semibold'}`}>{cop(value)}</span>
     </div>
   )
 }
 
+function Divider() { return <div className="border-t border-white/15 my-1" /> }
+
 function DiffBadge({ diff }: { diff: number }) {
-  if (Math.abs(diff) < 1) return <span className="text-emerald-400 font-bold">✓ Cuadrado</span>
-  if (diff > 0) return <span className="text-yellow-400 font-bold">+{cop(diff)} sobrante</span>
-  return <span className="text-red-400 font-bold">{cop(diff)} faltante</span>
+  if (Math.abs(diff) < 1) return <span className="text-emerald-400 font-bold text-xs">✓ Cuadrado</span>
+  if (diff > 0) return <span className="text-yellow-400 font-bold text-xs">+{cop(diff)} sobrante</span>
+  return <span className="text-red-400 font-bold text-xs">{cop(diff)} faltante</span>
 }
 
 const inp = "w-full bg-white/10 border border-white/15 rounded-lg px-2 py-1.5 text-white text-xs placeholder-white/30 focus:outline-none focus:border-yellow-400/70 focus:bg-white/15 transition-all"
@@ -82,7 +84,7 @@ export default function CierreCajaPage() {
   const [expandedId, setExpandedId]       = useState<string | null>(null)
   const [draftRestored, setDraftRestored] = useState(false)
 
-  // Form state
+  // Form
   const [shift, setShift]                       = useState<Shift>('morning')
   const [openingFund, setOpeningFund]           = useState('')
   const [puveTotalReported, setPuveTotalReported] = useState('')
@@ -95,7 +97,7 @@ export default function CierreCajaPage() {
   const [cashToOwner, setCashToOwner]           = useState('')
   const [differenceNote, setDifferenceNote]     = useState('')
 
-  // Refs para foco con Enter
+  // Refs Enter
   const billRefs         = useRef<(HTMLInputElement | null)[]>([])
   const puveTransRefs    = useRef<(HTMLInputElement | null)[]>([])
   const whatsappRefs     = useRef<(HTMLInputElement | null)[]>([])
@@ -106,7 +108,7 @@ export default function CierreCajaPage() {
   const didiIdRefs       = useRef<(HTMLInputElement | null)[]>([])
   const didiCashRefs     = useRef<(HTMLInputElement | null)[]>([])
 
-  // Cálculos
+  // ── CÁLCULOS ──────────────────────────────────────────────
   const cashCounted    = billCounts.reduce((s, b) => s + b.denomination * n(b.quantity), 0)
   const puveTransTotal = puveTransfers.reduce((s, t) => s + n(t.amount), 0)
   const didiCash       = didiOrders.reduce((s, o) => s + n(o.cash), 0)
@@ -114,32 +116,43 @@ export default function CierreCajaPage() {
   const whatsappTotal  = whatsappOrders.reduce((s, o) => s + n(o.amount), 0)
   const cancelledTotal = cancelledOrders.reduce((s, o) => s + n(o.amount), 0)
   const supplierTotal  = supplierPayments.reduce((s, o) => s + n(o.amount), 0)
-  const totalRealSales = cashCounted + puveTransTotal + didiCash + didiTransTotal + whatsappTotal - cancelledTotal
-  const expectedCash   = n(openingFund) + cashCounted + didiCash + whatsappTotal - supplierTotal
+
+  // Puve efectivo = Total Puve reportado - Transferencias Puve
+  const puveReported   = n(puveTotalReported)
+  const puveEfectivo   = puveReported > 0 ? puveReported - puveTransTotal : 0
+
+  // Efectivo esperado = Base + Puve efectivo + Didi efectivo + WhatsApp - Proveedores
+  const expectedCash   = n(openingFund) + puveEfectivo + didiCash + whatsappTotal - supplierTotal
+
+  // Diferencia = Efectivo contado - Efectivo esperado
   const difference     = cashCounted - expectedCash
-  const nextBase       = cashToOwner !== '' ? cashCounted - n(cashToOwner) : null
-  const needsNote      = Math.abs(difference) >= 1 && cashCounted > 0
 
-  // Verificación Total Puve reportado vs calculado
-  const puveCalculado  = cashCounted + puveTransTotal
-  const puveDiff       = puveTotalReported !== '' ? n(puveTotalReported) - puveCalculado : null
-  const puveOk         = puveDiff === null || Math.abs(puveDiff) < 1
+  // Total ventas real = Total Puve + Didi (ef+transf) + WhatsApp - Cancelados
+  const totalRealSales = puveReported + didiCash + didiTransTotal + whatsappTotal - cancelledTotal
 
-  // Cargar borrador al montar
+  // Verificación Puve: puveEfectivo debería coincidir con cashCounted - base - didiCash - whatsapp + supplierTotal
+  const puveEfectivoCalculado = cashCounted - n(openingFund) - didiCash - whatsappTotal + supplierTotal
+  const puveDiff = puveReported > 0 ? puveReported - (puveTransTotal + puveEfectivoCalculado) : null
+  const puveOk   = puveDiff === null || Math.abs(puveDiff) < 1
+
+  const nextBase   = cashToOwner !== '' ? cashCounted - n(cashToOwner) : null
+  const needsNote  = Math.abs(difference) >= 1 && cashCounted > 0
+
+  // Cargar borrador
   useEffect(() => {
-    const draft = loadDraft()
-    if (!draft) return
-    if (draft.shift)              setShift(draft.shift)
-    if (draft.openingFund)        setOpeningFund(draft.openingFund)
-    if (draft.puveTotalReported)  setPuveTotalReported(draft.puveTotalReported)
-    if (draft.billCounts)         setBillCounts(draft.billCounts)
-    if (draft.puveTransfers)      setPuveTransfers(draft.puveTransfers)
-    if (draft.didiOrders)         setDidiOrders(draft.didiOrders)
-    if (draft.whatsappOrders)     setWhatsappOrders(draft.whatsappOrders)
-    if (draft.cancelledOrders)    setCancelledOrders(draft.cancelledOrders)
-    if (draft.supplierPayments)   setSupplierPayments(draft.supplierPayments)
-    if (draft.cashToOwner)        setCashToOwner(draft.cashToOwner)
-    if (draft.differenceNote)     setDifferenceNote(draft.differenceNote)
+    const d = loadDraft()
+    if (!d) return
+    if (d.shift)              setShift(d.shift)
+    if (d.openingFund)        setOpeningFund(d.openingFund)
+    if (d.puveTotalReported)  setPuveTotalReported(d.puveTotalReported)
+    if (d.billCounts)         setBillCounts(d.billCounts)
+    if (d.puveTransfers)      setPuveTransfers(d.puveTransfers)
+    if (d.didiOrders)         setDidiOrders(d.didiOrders)
+    if (d.whatsappOrders)     setWhatsappOrders(d.whatsappOrders)
+    if (d.cancelledOrders)    setCancelledOrders(d.cancelledOrders)
+    if (d.supplierPayments)   setSupplierPayments(d.supplierPayments)
+    if (d.cashToOwner)        setCashToOwner(d.cashToOwner)
+    if (d.differenceNote)     setDifferenceNote(d.differenceNote)
     setDraftRestored(true)
   }, [])
 
@@ -181,22 +194,21 @@ export default function CierreCajaPage() {
     setDraftRestored(false); clearDraft()
   }
 
-  // ── Handlers Enter ──────────────────────────────
+  // ── Handlers Enter ──
   function onBillEnter(e: React.KeyboardEvent, i: number) {
-    if (e.key !== 'Enter') return; e.preventDefault()
-    billRefs.current[i + 1]?.focus()
+    if (e.key !== 'Enter') return; e.preventDefault(); billRefs.current[i + 1]?.focus()
   }
   function onPuveTransEnter(e: React.KeyboardEvent, i: number) {
     if (e.key !== 'Enter') return; e.preventDefault()
     if (i + 1 >= puveTransfers.length) {
       setPuveTransfers(prev => { const u = [...prev, { amount: '' }]; setTimeout(() => puveTransRefs.current[i + 1]?.focus(), 30); return u })
-    } else { puveTransRefs.current[i + 1]?.focus() }
+    } else puveTransRefs.current[i + 1]?.focus()
   }
   function onWhatsappEnter(e: React.KeyboardEvent, i: number) {
     if (e.key !== 'Enter') return; e.preventDefault()
     if (i + 1 >= whatsappOrders.length) {
       setWhatsappOrders(prev => { const u = [...prev, { amount: '' }]; setTimeout(() => whatsappRefs.current[i + 1]?.focus(), 30); return u })
-    } else { whatsappRefs.current[i + 1]?.focus() }
+    } else whatsappRefs.current[i + 1]?.focus()
   }
   function onCancelInvEnter(e: React.KeyboardEvent, i: number) {
     if (e.key !== 'Enter') return; e.preventDefault(); cancelAmtRefs.current[i]?.focus()
@@ -205,7 +217,7 @@ export default function CierreCajaPage() {
     if (e.key !== 'Enter') return; e.preventDefault()
     if (i + 1 >= cancelledOrders.length) {
       setCancelledOrders(prev => { const u = [...prev, { invoice: '', amount: '' }]; setTimeout(() => cancelInvRefs.current[i + 1]?.focus(), 30); return u })
-    } else { cancelInvRefs.current[i + 1]?.focus() }
+    } else cancelInvRefs.current[i + 1]?.focus()
   }
   function onSupplierDescEnter(e: React.KeyboardEvent, i: number) {
     if (e.key !== 'Enter') return; e.preventDefault(); supplierAmtRefs.current[i]?.focus()
@@ -214,7 +226,7 @@ export default function CierreCajaPage() {
     if (e.key !== 'Enter') return; e.preventDefault()
     if (i + 1 >= supplierPayments.length) {
       setSupplierPayments(prev => { const u = [...prev, { description: '', amount: '' }]; setTimeout(() => supplierDescRefs.current[i + 1]?.focus(), 30); return u })
-    } else { supplierDescRefs.current[i + 1]?.focus() }
+    } else supplierDescRefs.current[i + 1]?.focus()
   }
   function onDidiIdEnter(e: React.KeyboardEvent, i: number) {
     if (e.key !== 'Enter') return; e.preventDefault(); didiCashRefs.current[i]?.focus()
@@ -223,14 +235,15 @@ export default function CierreCajaPage() {
     if (e.key !== 'Enter') return; e.preventDefault()
     if (i + 1 >= didiOrders.length) {
       setDidiOrders(prev => { const u = [...prev, { order_id: '', cash: '', transfers: [] }]; setTimeout(() => didiIdRefs.current[i + 1]?.focus(), 30); return u })
-    } else { didiIdRefs.current[i + 1]?.focus() }
+    } else didiIdRefs.current[i + 1]?.focus()
   }
 
   async function handleSubmit() {
     if (!worker) return
-    if (cashCounted === 0)   { showMsg('error', 'Registra el conteo de billetes'); return }
-    if (cashToOwner === '')  { showMsg('error', 'Ingresa cuánto vas a dejar en el sobre'); return }
-    if (!puveOk)             { showMsg('error', `El Total Puve no coincide — hay una diferencia de ${cop(Math.abs(puveDiff!))}. Verifica antes de enviar.`); return }
+    if (cashCounted === 0)  { showMsg('error', 'Registra el conteo de billetes'); return }
+    if (!puveTotalReported) { showMsg('error', 'Ingresa el Total ventas Puve'); return }
+    if (cashToOwner === '') { showMsg('error', 'Ingresa cuánto vas a dejar en el sobre'); return }
+    if (!puveOk)            { showMsg('error', `El Total Puve no coincide — diferencia de ${cop(Math.abs(puveDiff!))}. Verifica antes de enviar.`); return }
     if (needsNote && !differenceNote.trim()) { showMsg('error', 'Hay un descuadre — escribe una nota'); return }
     setSaving(true)
     const res = await fetch('/api/worker/cash-register', {
@@ -238,14 +251,19 @@ export default function CierreCajaPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         worker_id: worker.id, shift,
-        opening_fund: n(openingFund),
-        puve_cash: cashCounted, puve_transfer: puveTransTotal,
-        puve_total_reported: n(puveTotalReported),
-        didi_orders: didiOrders, whatsapp_orders: whatsappOrders,
-        cancelled_orders: cancelledOrders, supplier_payments: supplierPayments,
-        cash_counted: cashCounted, cash_to_owner: n(cashToOwner),
-        difference_note: differenceNote.trim() || null,
-        bill_counts: billCounts, puve_transfers: puveTransfers,
+        opening_fund:        n(openingFund),
+        puve_cash:           puveEfectivo,
+        puve_transfer:       puveTransTotal,
+        puve_total_reported: puveReported,
+        didi_orders:         didiOrders,
+        whatsapp_orders:     whatsappOrders,
+        cancelled_orders:    cancelledOrders,
+        supplier_payments:   supplierPayments,
+        cash_counted:        cashCounted,
+        cash_to_owner:       n(cashToOwner),
+        difference_note:     differenceNote.trim() || null,
+        bill_counts:         billCounts,
+        puve_transfers:      puveTransfers,
       }),
     })
     const json = await res.json()
@@ -262,8 +280,7 @@ export default function CierreCajaPage() {
   )
 
   return (
-    <div className="space-y-4 max-w-full mx-auto">
-
+    <div className="space-y-3 max-w-full mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -287,21 +304,20 @@ export default function CierreCajaPage() {
       )}
 
       {activeTab === 'form' && (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {draftRestored && (
-            <div className="rounded-2xl px-4 py-2.5 text-xs font-semibold border bg-purple-500/20 border-purple-400/30 text-purple-200 flex items-center gap-2">
-              <span>⚡</span>
-              <span>Borrador recuperado — continuás donde lo dejaste.</span>
+            <div className="rounded-2xl px-4 py-2 text-xs font-semibold border bg-purple-500/20 border-purple-400/30 text-purple-200 flex items-center gap-2">
+              <span>⚡</span><span>Borrador recuperado — continuás donde lo dejaste.</span>
               <button onClick={resetForm} className="ml-auto text-purple-300 hover:text-white underline">Limpiar</button>
             </div>
           )}
 
-          {/* Turno + Base + Total Puve */}
-          <div className="flex flex-wrap items-center gap-4 bg-white/8 border border-white/10 rounded-2xl px-5 py-3">
+          {/* Barra superior: turno + base + total puve */}
+          <div className="flex flex-wrap items-center gap-3 bg-white/8 border border-white/10 rounded-2xl px-4 py-3">
             <div className="flex gap-2">
               {(['morning', 'afternoon'] as const).map(s => (
                 <button key={s} onClick={() => setShift(s)}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all ${shift === s ? 'bg-yellow-400 text-purple-900 border-yellow-400' : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10'}`}>
+                  className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all ${shift === s ? 'bg-yellow-400 text-purple-900 border-yellow-400' : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10'}`}>
                   {SHIFT_LABELS[s]}
                 </button>
               ))}
@@ -310,9 +326,7 @@ export default function CierreCajaPage() {
               <label className="text-white/50 text-xs font-semibold whitespace-nowrap">Base recibida:</label>
               <input type="number" min="0" value={openingFund} onChange={e => setOpeningFund(e.target.value)}
                 className="w-32 bg-white/10 border border-white/15 rounded-lg px-3 py-1.5 text-white text-sm font-bold focus:outline-none focus:border-yellow-400/60 transition-all" placeholder="0" />
-              {suggestedBase > 0 && openingFund === String(suggestedBase) && (
-                <span className="text-yellow-400/60 text-xs">✓ anterior</span>
-              )}
+              {suggestedBase > 0 && openingFund === String(suggestedBase) && <span className="text-yellow-400/60 text-xs">✓ anterior</span>}
             </div>
             <div className="flex items-center gap-2">
               <label className="text-white/50 text-xs font-semibold whitespace-nowrap">Total ventas Puve:</label>
@@ -320,20 +334,26 @@ export default function CierreCajaPage() {
                 className={`w-36 bg-white/10 border rounded-lg px-3 py-1.5 text-white text-sm font-bold focus:outline-none transition-all ${
                   puveDiff === null ? 'border-white/15 focus:border-yellow-400/60'
                   : puveOk ? 'border-emerald-400/60 bg-emerald-500/10'
-                  : 'border-red-400/60 bg-red-500/10'
-                }`}
+                  : 'border-red-400/60 bg-red-500/10'}`}
                 placeholder="$ total Puve" />
               {puveDiff !== null && (
-                <span className={`text-xs font-bold ${puveOk ? 'text-emerald-400' : 'text-red-400'}`}>
+                <span className={`text-xs font-bold whitespace-nowrap ${puveOk ? 'text-emerald-400' : 'text-red-400'}`}>
                   {puveOk ? '✓ Coincide' : `⚠ Dif: ${cop(Math.abs(puveDiff))}`}
                 </span>
               )}
             </div>
+            {/* Puve efectivo calculado — informativo */}
+            {puveReported > 0 && (
+              <div className="flex items-center gap-2 bg-white/5 rounded-xl px-3 py-1.5">
+                <span className="text-white/40 text-xs">Puve efectivo:</span>
+                <span className="text-white font-bold text-xs">{cop(puveEfectivo)}</span>
+              </div>
+            )}
           </div>
 
-          {/* Grid columnas — overflow scroll horizontal */}
+          {/* Grid 6 columnas con scroll horizontal */}
           <div className="overflow-x-auto pb-2">
-            <div className="grid gap-3 items-start" style={{ gridTemplateColumns: 'repeat(6, minmax(180px, 1fr))', minWidth: '1100px' }}>
+            <div className="grid gap-3 items-start" style={{ gridTemplateColumns: 'repeat(6, minmax(185px, 1fr))', minWidth: '1120px' }}>
 
               {/* COL 1 — Efectivo */}
               <Col title="Efectivo en Caja">
@@ -349,16 +369,16 @@ export default function CierreCajaPage() {
                       ref={el => { billRefs.current[i] = el }}
                       type="number" min="0" value={b.quantity}
                       onChange={e => setBillCounts(prev => prev.map((x, j) => j === i ? { ...x, quantity: e.target.value } : x))}
-                      onKeyDown={e => onBillEnter(e, i)}
-                      placeholder="0"
-                      className="bg-white/10 border border-white/15 rounded-md px-1 py-1 text-white text-xs text-center focus:outline-none focus:border-yellow-400/70 focus:bg-white/15 transition-all w-full"
-                    />
+                      onKeyDown={e => onBillEnter(e, i)} placeholder="0"
+                      className="bg-white/10 border border-white/15 rounded-md px-1 py-1 text-white text-xs text-center focus:outline-none focus:border-yellow-400/70 transition-all w-full" />
                     <span className="text-white text-xs text-right font-semibold">
                       {n(b.quantity) > 0 ? cop(b.denomination * n(b.quantity)) : '—'}
                     </span>
                   </div>
                 ))}
-                <TotalRow label="Total efectivo" value={cashCounted} color="text-yellow-400" />
+                <div className="border-t border-white/15 mt-1 pt-2">
+                  <Row label="Total efectivo" value={cashCounted} color="text-yellow-400" bold />
+                </div>
               </Col>
 
               {/* COL 2 — Transferencias */}
@@ -370,17 +390,16 @@ export default function CierreCajaPage() {
                       ref={el => { puveTransRefs.current[i] = el }}
                       type="number" min="0" value={t.amount}
                       onChange={e => setPuveTransfers(prev => prev.map((x, j) => j === i ? { amount: e.target.value } : x))}
-                      onKeyDown={e => onPuveTransEnter(e, i)}
-                      placeholder="$ valor"
-                      className={inp}
-                    />
+                      onKeyDown={e => onPuveTransEnter(e, i)} placeholder="$ valor" className={inp} />
                     {puveTransfers.length > 1 && (
                       <button onClick={() => setPuveTransfers(prev => prev.filter((_, j) => j !== i))}
-                        className="text-red-400/40 hover:text-red-400 text-xs flex-shrink-0 px-1 transition-all">✕</button>
+                        className="text-red-400/40 hover:text-red-400 text-xs px-1 flex-shrink-0">✕</button>
                     )}
                   </div>
                 ))}
-                <TotalRow label="Total transferencias" value={puveTransTotal} />
+                <div className="border-t border-white/15 mt-1 pt-2">
+                  <Row label="Total transferencias" value={puveTransTotal} color="text-yellow-400" bold />
+                </div>
               </Col>
 
               {/* COL 3 — Didi */}
@@ -394,18 +413,19 @@ export default function CierreCajaPage() {
                       <button onClick={() => setDidiOrders(prev => prev.filter((_, j) => j !== i))}
                         className="text-red-400/40 hover:text-red-400 text-xs">✕</button>
                     </div>
-                    <input ref={el => { didiIdRefs.current[i] = el }} type="text" value={o.order_id} placeholder="No. pedido"
+                    <input ref={el => { didiIdRefs.current[i] = el }} type="text" value={o.order_id}
+                      placeholder="No. pedido" className={inp}
                       onChange={e => setDidiOrders(prev => prev.map((x, j) => j === i ? { ...x, order_id: e.target.value } : x))}
-                      onKeyDown={e => onDidiIdEnter(e, i)} className={inp} />
-                    <input ref={el => { didiCashRefs.current[i] = el }} type="number" min="0" value={o.cash} placeholder="$ efectivo"
+                      onKeyDown={e => onDidiIdEnter(e, i)} />
+                    <input ref={el => { didiCashRefs.current[i] = el }} type="number" min="0" value={o.cash}
+                      placeholder="$ efectivo" className={inp}
                       onChange={e => setDidiOrders(prev => prev.map((x, j) => j === i ? { ...x, cash: e.target.value } : x))}
-                      onKeyDown={e => onDidiCashEnter(e, i)} className={inp} />
+                      onKeyDown={e => onDidiCashEnter(e, i)} />
                     {o.transfers.map((t, ti) => (
                       <div key={ti} className="flex gap-1">
-                        <input type="number" min="0" value={t.amount} placeholder="$ transf."
+                        <input type="number" min="0" value={t.amount} placeholder="$ transf." className={inp}
                           onChange={e => setDidiOrders(prev => prev.map((x, j) => j === i ? { ...x, transfers: x.transfers.map((tt, tj) => tj === ti ? { amount: e.target.value } : tt) } : x))}
-                          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (ti === o.transfers.length - 1) setDidiOrders(prev => prev.map((x, j) => j === i ? { ...x, transfers: [...x.transfers, { amount: '' }] } : x)) } }}
-                          className={inp} />
+                          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (ti === o.transfers.length - 1) setDidiOrders(prev => prev.map((x, j) => j === i ? { ...x, transfers: [...x.transfers, { amount: '' }] } : x)) } }} />
                         <button onClick={() => setDidiOrders(prev => prev.map((x, j) => j === i ? { ...x, transfers: x.transfers.filter((_, tj) => tj !== ti) } : x))}
                           className="text-red-400/40 hover:text-red-400 text-xs px-1 flex-shrink-0">✕</button>
                       </div>
@@ -421,116 +441,144 @@ export default function CierreCajaPage() {
                 <button onClick={() => { setDidiOrders(prev => [...prev, { order_id: '', cash: '', transfers: [] }]); setTimeout(() => didiIdRefs.current[didiOrders.length]?.focus(), 30) }}
                   className="w-full py-1.5 text-xs text-white/30 hover:text-yellow-400/60 border border-dashed border-white/15 rounded-lg transition-all">+ agregar pedido</button>
                 {didiOrders.length > 0 && (
-                  <>
-                    <TotalRow label="Didi efectivo"  value={didiCash}                  border={false} color="text-white" />
-                    <TotalRow label="Didi transf."   value={didiTransTotal}            border={false} color="text-white" />
-                    <TotalRow label="Total Didi"     value={didiCash + didiTransTotal} />
-                  </>
+                  <div className="border-t border-white/15 mt-1 pt-2 space-y-1">
+                    <Row label="Didi efectivo (entra a caja)" value={didiCash} color="text-white" />
+                    <Row label="Didi transferencia"           value={didiTransTotal} color="text-white" />
+                    <Row label="Total Didi"                   value={didiCash + didiTransTotal} color="text-yellow-400" bold />
+                  </div>
                 )}
               </Col>
 
-              {/* COL 4 — WhatsApp */}
+              {/* COL 4 — WhatsApp + Cancelados */}
               <Col title="Cancelados / WhatsApp">
                 <p className="text-white/40 text-xs font-semibold">Pedidos WhatsApp (efectivo)</p>
                 <p className="text-white/25 text-xs">↵ Enter para agregar otro</p>
                 {whatsappOrders.map((o, i) => (
                   <div key={i} className="flex gap-1">
-                    <input ref={el => { whatsappRefs.current[i] = el }} type="number" min="0" value={o.amount} placeholder="$ valor"
+                    <input ref={el => { whatsappRefs.current[i] = el }} type="number" min="0" value={o.amount}
+                      placeholder="$ valor" className={inp}
                       onChange={e => setWhatsappOrders(prev => prev.map((x, j) => j === i ? { amount: e.target.value } : x))}
-                      onKeyDown={e => onWhatsappEnter(e, i)} className={inp} />
+                      onKeyDown={e => onWhatsappEnter(e, i)} />
                     <button onClick={() => setWhatsappOrders(prev => prev.filter((_, j) => j !== i))}
                       className="text-red-400/40 hover:text-red-400 text-xs px-1 flex-shrink-0">✕</button>
                   </div>
                 ))}
                 <button onClick={() => { setWhatsappOrders(prev => [...prev, { amount: '' }]); setTimeout(() => whatsappRefs.current[whatsappOrders.length]?.focus(), 30) }}
                   className="w-full py-1 text-xs text-white/25 hover:text-yellow-400/50 border border-dashed border-white/10 rounded-lg transition-all">+ agregar</button>
-                {whatsappTotal > 0 && <TotalRow label="Total WhatsApp" value={whatsappTotal} />}
+                {whatsappTotal > 0 && (
+                  <div className="border-t border-white/15 mt-1 pt-1">
+                    <Row label="Total WhatsApp" value={whatsappTotal} color="text-yellow-400" bold />
+                  </div>
+                )}
 
-                <div className="border-t border-white/10 pt-2 mt-1">
-                  <p className="text-white/40 text-xs font-semibold mb-1">Cancelados / Error Puve</p>
-                  <p className="text-white/25 text-xs mb-1">↵ Factura → Valor → nuevo</p>
-                  {cancelledOrders.map((o, i) => (
-                    <div key={i} className="space-y-1 mb-2">
-                      <div className="flex gap-1">
-                        <input ref={el => { cancelInvRefs.current[i] = el }} type="text" value={o.invoice} placeholder="No. factura"
-                          onChange={e => setCancelledOrders(prev => prev.map((x, j) => j === i ? { ...x, invoice: e.target.value } : x))}
-                          onKeyDown={e => onCancelInvEnter(e, i)} className={inp} />
-                        <button onClick={() => setCancelledOrders(prev => prev.filter((_, j) => j !== i))}
-                          className="text-red-400/40 hover:text-red-400 text-xs px-1 flex-shrink-0">✕</button>
-                      </div>
-                      <input ref={el => { cancelAmtRefs.current[i] = el }} type="number" min="0" value={o.amount} placeholder="$ valor"
-                        onChange={e => setCancelledOrders(prev => prev.map((x, j) => j === i ? { ...x, amount: e.target.value } : x))}
-                        onKeyDown={e => onCancelAmtEnter(e, i)} className={inp} />
+                <Divider />
+                <p className="text-white/40 text-xs font-semibold">Cancelados / Error Puve</p>
+                <p className="text-white/25 text-xs">↵ Factura → Valor → nuevo</p>
+                {cancelledOrders.map((o, i) => (
+                  <div key={i} className="space-y-1 mb-1">
+                    <div className="flex gap-1">
+                      <input ref={el => { cancelInvRefs.current[i] = el }} type="text" value={o.invoice}
+                        placeholder="No. factura" className={inp}
+                        onChange={e => setCancelledOrders(prev => prev.map((x, j) => j === i ? { ...x, invoice: e.target.value } : x))}
+                        onKeyDown={e => onCancelInvEnter(e, i)} />
+                      <button onClick={() => setCancelledOrders(prev => prev.filter((_, j) => j !== i))}
+                        className="text-red-400/40 hover:text-red-400 text-xs px-1 flex-shrink-0">✕</button>
                     </div>
-                  ))}
-                  <button onClick={() => { setCancelledOrders(prev => [...prev, { invoice: '', amount: '' }]); setTimeout(() => cancelInvRefs.current[cancelledOrders.length]?.focus(), 30) }}
-                    className="w-full py-1 text-xs text-white/25 hover:text-yellow-400/50 border border-dashed border-white/10 rounded-lg transition-all">+ agregar</button>
-                  {cancelledTotal > 0 && <TotalRow label="Cancelados (−)" value={cancelledTotal} color="text-red-400" />}
-                </div>
+                    <input ref={el => { cancelAmtRefs.current[i] = el }} type="number" min="0" value={o.amount}
+                      placeholder="$ valor" className={inp}
+                      onChange={e => setCancelledOrders(prev => prev.map((x, j) => j === i ? { ...x, amount: e.target.value } : x))}
+                      onKeyDown={e => onCancelAmtEnter(e, i)} />
+                  </div>
+                ))}
+                <button onClick={() => { setCancelledOrders(prev => [...prev, { invoice: '', amount: '' }]); setTimeout(() => cancelInvRefs.current[cancelledOrders.length]?.focus(), 30) }}
+                  className="w-full py-1 text-xs text-white/25 hover:text-yellow-400/50 border border-dashed border-white/10 rounded-lg transition-all">+ agregar</button>
+                {cancelledTotal > 0 && (
+                  <div className="border-t border-white/15 mt-1 pt-1">
+                    <Row label="Cancelados (se restan)" value={cancelledTotal} color="text-red-400" bold />
+                  </div>
+                )}
               </Col>
 
               {/* COL 5 — Proveedores */}
               <Col title="Proveedores">
-                <p className="text-white/25 text-xs">↵ Descripción → Valor → nuevo</p>
+                <p className="text-white/30 text-xs">↵ Descripción → Valor → nuevo</p>
+                <p className="text-white/25 text-xs pb-1">Salen del efectivo de caja</p>
                 {supplierPayments.map((o, i) => (
-                  <div key={i} className="space-y-1 mb-2">
+                  <div key={i} className="space-y-1 mb-1">
                     <div className="flex gap-1">
-                      <input ref={el => { supplierDescRefs.current[i] = el }} type="text" value={o.description} placeholder="Descripción"
+                      <input ref={el => { supplierDescRefs.current[i] = el }} type="text" value={o.description}
+                        placeholder="Descripción" className={inp}
                         onChange={e => setSupplierPayments(prev => prev.map((x, j) => j === i ? { ...x, description: e.target.value } : x))}
-                        onKeyDown={e => onSupplierDescEnter(e, i)} className={inp} />
+                        onKeyDown={e => onSupplierDescEnter(e, i)} />
                       <button onClick={() => setSupplierPayments(prev => prev.filter((_, j) => j !== i))}
                         className="text-red-400/40 hover:text-red-400 text-xs px-1 flex-shrink-0">✕</button>
                     </div>
-                    <input ref={el => { supplierAmtRefs.current[i] = el }} type="number" min="0" value={o.amount} placeholder="$ valor"
+                    <input ref={el => { supplierAmtRefs.current[i] = el }} type="number" min="0" value={o.amount}
+                      placeholder="$ valor" className={inp}
                       onChange={e => setSupplierPayments(prev => prev.map((x, j) => j === i ? { ...x, amount: e.target.value } : x))}
-                      onKeyDown={e => onSupplierAmtEnter(e, i)} className={inp} />
+                      onKeyDown={e => onSupplierAmtEnter(e, i)} />
                   </div>
                 ))}
                 <button onClick={() => { setSupplierPayments(prev => [...prev, { description: '', amount: '' }]); setTimeout(() => supplierDescRefs.current[supplierPayments.length]?.focus(), 30) }}
                   className="w-full py-1 text-xs text-white/25 hover:text-yellow-400/50 border border-dashed border-white/10 rounded-lg transition-all">+ agregar</button>
-                {supplierTotal > 0 && <TotalRow label="Proveedores (−)" value={supplierTotal} color="text-red-400" />}
+                {supplierTotal > 0 && (
+                  <div className="border-t border-white/15 mt-1 pt-1">
+                    <Row label="Total proveedores (−)" value={supplierTotal} color="text-red-400" bold />
+                  </div>
+                )}
               </Col>
 
               {/* COL 6 — Resumen y Cierre */}
               <Col title="Resumen / Cierre">
-                <p className="text-yellow-400 text-xs font-bold mb-1">RESUMEN</p>
-                {[
-                  { label: 'Efectivo contado',   value: cashCounted,              color: 'text-white' },
-                  { label: 'Transferencias',      value: puveTransTotal,           color: 'text-white' },
-                  { label: 'Didi',               value: didiCash + didiTransTotal, color: 'text-white' },
-                  { label: 'WhatsApp',           value: whatsappTotal,            color: 'text-white' },
-                  { label: 'Cancelados (−)',      value: cancelledTotal,           color: 'text-red-400' },
-                  { label: 'Proveedores (−)',     value: supplierTotal,            color: 'text-red-400' },
-                ].map(row => (
-                  <div key={row.label} className="flex justify-between text-xs">
-                    <span className="text-white/50">{row.label}</span>
-                    <span className={`${row.color} font-semibold`}>{cop(row.value)}</span>
-                  </div>
-                ))}
-                <div className="flex justify-between text-xs font-bold border-t border-white/15 pt-1.5 mt-1">
-                  <span className="text-white/80">Total ventas real</span>
-                  <span className="text-yellow-400">{cop(totalRealSales)}</span>
-                </div>
-                <div className="flex justify-between text-xs font-bold">
-                  <span className="text-white/80">Efectivo esperado</span>
-                  <span className="text-white">{cop(expectedCash)}</span>
-                </div>
-                <div className="flex justify-between text-xs font-bold border-t border-white/15 pt-1.5 mt-1">
-                  <span className="text-white/80">Diferencia</span>
-                  <DiffBadge diff={difference} />
+                <p className="text-yellow-400 text-xs font-bold">RESUMEN</p>
+
+                {/* Desglose Puve */}
+                <div className="bg-white/5 rounded-lg p-2 space-y-1">
+                  <p className="text-white/40 text-xs font-semibold mb-1">Puve</p>
+                  <Row label="Efectivo Puve"     value={puveEfectivo}   color="text-white" />
+                  <Row label="Transferencias"    value={puveTransTotal} color="text-white" />
+                  <Row label="Total ventas Puve" value={puveReported}   color="text-yellow-400" bold />
                 </div>
 
-                {/* Verificación Total Puve */}
+                <Divider />
+                <Row label="+ Didi efectivo"   value={didiCash}       color="text-white" />
+                <Row label="+ Didi transf."    value={didiTransTotal} color="text-white" />
+                <Row label="+ WhatsApp"        value={whatsappTotal}  color="text-white" />
+                <Row label="− Cancelados"      value={cancelledTotal} color="text-red-400" />
+                <Divider />
+                <Row label="Total ventas real" value={totalRealSales} color="text-yellow-400" bold />
+
+                <Divider />
+                {/* Verificación caja */}
+                <div className="bg-white/5 rounded-lg p-2 space-y-1">
+                  <p className="text-white/40 text-xs font-semibold mb-1">Verificación caja</p>
+                  <Row label="Base recibida"     value={n(openingFund)} color="text-white" />
+                  <Row label="+ Puve efectivo"   value={puveEfectivo}   color="text-white" />
+                  <Row label="+ Didi efectivo"   value={didiCash}       color="text-white" />
+                  <Row label="+ WhatsApp"        value={whatsappTotal}  color="text-white" />
+                  <Row label="− Proveedores"     value={supplierTotal}  color="text-red-400" />
+                  <Row label="Efectivo esperado" value={expectedCash}   color="text-white" bold />
+                  <Row label="Efectivo contado"  value={cashCounted}    color="text-white" bold />
+                  <div className="flex justify-between items-center text-xs font-bold pt-1 border-t border-white/10">
+                    <span className="text-white/80">Diferencia</span>
+                    <DiffBadge diff={difference} />
+                  </div>
+                </div>
+
+                {/* Alerta Puve */}
                 {puveDiff !== null && (
-                  <div className={`rounded-xl px-2 py-2 text-xs border mt-1 ${puveOk ? 'bg-emerald-500/10 border-emerald-400/20 text-emerald-300' : 'bg-red-500/10 border-red-400/20 text-red-300'}`}>
-                    <p className="font-bold mb-0.5">{puveOk ? '✓ Total Puve coincide' : '⚠ Total Puve no coincide'}</p>
-                    {!puveOk && <p>Puve dice {cop(n(puveTotalReported))} — calculado {cop(puveCalculado)} — dif. {cop(Math.abs(puveDiff))}</p>}
+                  <div className={`rounded-xl px-2 py-2 text-xs border ${puveOk ? 'bg-emerald-500/10 border-emerald-400/20 text-emerald-300' : 'bg-red-500/10 border-red-400/20 text-red-300'}`}>
+                    {puveOk
+                      ? '✓ Total Puve coincide con efectivo + transferencias'
+                      : `⚠ Total Puve no coincide — diferencia ${cop(Math.abs(puveDiff))}`}
                   </div>
                 )}
 
-                <div className="pt-1">
+                {/* Entregar en el sobre */}
+                <div>
                   <label className="text-white/40 text-xs font-semibold block mb-1">Entregar en el sobre</label>
-                  <input type="number" min="0" value={cashToOwner} onChange={e => setCashToOwner(e.target.value)} placeholder="$ valor"
+                  <input type="number" min="0" value={cashToOwner} onChange={e => setCashToOwner(e.target.value)}
+                    placeholder="$ valor"
                     className="w-full bg-white/10 border border-white/15 rounded-lg px-2 py-1.5 text-white text-sm font-bold focus:outline-none focus:border-yellow-400/60 transition-all" />
                 </div>
 
@@ -550,7 +598,7 @@ export default function CierreCajaPage() {
                   </div>
                 )}
 
-                <button onClick={handleSubmit} disabled={saving} className="btn-primary w-full !py-2 !text-sm mt-1">
+                <button onClick={handleSubmit} disabled={saving} className="btn-primary w-full !py-2 !text-sm">
                   {saving ? 'Guardando...' : '✓ Enviar cierre'}
                 </button>
               </Col>
@@ -583,13 +631,20 @@ export default function CierreCajaPage() {
               {expandedId === r.id && (
                 <div className="mt-4 pt-4 border-t border-white/10 grid grid-cols-4 gap-3">
                   {([
-                    ['Base recibida', r.opening_fund], ['Efectivo contado', r.cash_counted],
-                    ['Transferencias', r.puve_transfer], ['Didi efectivo', r.didi_cash_total],
-                    ['Didi transf.', r.didi_transfer_total], ['WhatsApp', r.whatsapp_total],
-                    ['Cancelados (−)', r.cancelled_total], ['Proveedores (−)', r.supplier_total],
-                    ['Total ventas Puve', r.puve_total_reported ?? 0], ['Total ventas real', r.total_real_sales],
-                    ['Efectivo esperado', r.expected_cash], ['Entregado en sobre', r.cash_to_owner],
-                    ['Base sig. día', r.next_base],
+                    ['Base recibida',       r.opening_fund],
+                    ['Efectivo contado',    r.cash_counted],
+                    ['Total ventas Puve',   r.puve_total_reported ?? 0],
+                    ['Puve efectivo',       r.puve_cash],
+                    ['Transferencias',      r.puve_transfer],
+                    ['Didi efectivo',       r.didi_cash_total],
+                    ['Didi transf.',        r.didi_transfer_total],
+                    ['WhatsApp',            r.whatsapp_total],
+                    ['Cancelados (−)',      r.cancelled_total],
+                    ['Proveedores (−)',     r.supplier_total],
+                    ['Total ventas real',   r.total_real_sales],
+                    ['Efectivo esperado',   r.expected_cash],
+                    ['Entregado en sobre',  r.cash_to_owner],
+                    ['Base sig. día',       r.next_base],
                   ] as [string, number][]).map(([label, value]) => (
                     <div key={label} className="bg-white/5 rounded-xl px-3 py-2">
                       <p className="text-white/40 text-xs">{label}</p>
