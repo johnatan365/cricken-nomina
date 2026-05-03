@@ -243,8 +243,7 @@ export default function CierreCajaPage() {
     if (cashCounted === 0)  { showMsg('error', 'Registra el conteo de billetes'); return }
     if (!puveTotalReported) { showMsg('error', 'Ingresa el Total ventas Puve'); return }
     if (cashToOwner === '') { showMsg('error', 'Ingresa cuánto vas a dejar en el sobre'); return }
-    if (!puveOk)            { showMsg('error', `El Total Puve no coincide — diferencia de ${cop(Math.abs(puveDiff!))}. Verifica antes de enviar.`); return }
-    if (needsNote && !differenceNote.trim()) { showMsg('error', 'Hay un descuadre — escribe una nota'); return }
+    if (needsNote && !differenceNote.trim()) { showMsg('error', 'Hay un descuadre — la nota es obligatoria antes de enviar'); return }
     setSaving(true)
     const res = await fetch('/api/worker/cash-register', {
       method: 'POST',
