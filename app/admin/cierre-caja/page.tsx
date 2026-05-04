@@ -80,9 +80,13 @@ export default function AdminCierreCajaPage() {
   const [onlyIssues, setOnlyIssues]   = useState(false)
   const [baseRequests, setBaseRequests] = useState<BaseChangeRequest[]>([])
   const [processingId, setProcessingId]   = useState<string | null>(null)
-  const [editingBase, setEditingBase]     = useState<Record<string, string>>({})
+  const editingBaseRef                    = useRef<Record<string, string>>({})
+  const [editingBaseVersion, setEditingBaseVersion] = useState(0)  // solo para forzar render
   const [savingBase, setSavingBase]       = useState<string | null>(null)
   const [deletingId, setDeletingId]       = useState<string | null>(null)
+
+  // Helper para leer editingBase en el render
+  const editingBase = editingBaseRef.current
   const [adminNotes, setAdminNotes]         = useState<Record<string, string>>({})
   const [diffRequests, setDiffRequests]     = useState<DifferenceRequest[]>([])
   const [diffNotes, setDiffNotes]           = useState<Record<string, string>>({})
@@ -140,6 +144,7 @@ export default function AdminCierreCajaPage() {
   async function saveBase(registerId: string) {
     const newBase = editingBase[registerId]
     if (!newBase) return
+    const savedExpanded = expandedRef.current
     setSavingBase(registerId)
     const res = await fetch('/api/admin/cash-registers/edit-base', {
       method: 'PATCH',
@@ -148,16 +153,14 @@ export default function AdminCierreCajaPage() {
     })
     setSavingBase(null)
     if (res.ok) {
-      const savedExpanded = expandedRef.current
       setRegisters(prev => prev.map(r =>
         r.id === registerId ? { ...r, next_base: parseFloat(newBase) } : r
       ))
-      setEditingBase(prev => { const n = {...prev}; delete n[registerId]; return n })
-      // Restaurar expanded después del re-render
-      setTimeout(() => {
-        expandedRef.current = savedExpanded
-        setExpanded(savedExpanded)
-      }, 0)
+      delete editingBaseRef.current[registerId]
+      setEditingBaseVersion(v => v + 1)
+      // Restaurar expanded
+      expandedRef.current = savedExpanded
+      setExpanded(savedExpanded)
     }
   }
 
@@ -494,7 +497,7 @@ export default function AdminCierreCajaPage() {
                         <input
                           type="number" min="0"
                           value={editingBase[r.id] ?? r.next_base}
-                          onChange={e => setEditingBase(prev => ({ ...prev, [r.id]: e.target.value }))}
+                          onChange={e => editingBaseRef.current = { ...editingBaseRef.current, [r.id]: e.target.value }; setEditingBaseVersion(v => v + 1)}
                           className="w-36 bg-white/10 border border-emerald-400/30 rounded-xl px-3 py-1.5 text-white text-sm font-bold focus:outline-none focus:border-emerald-400/60 transition-all"
                         />
                         {editingBase[r.id] !== undefined && String(editingBase[r.id]) !== String(r.next_base) && (

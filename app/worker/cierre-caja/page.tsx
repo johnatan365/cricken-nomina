@@ -83,6 +83,7 @@ export default function CierreCajaPage() {
   const [expandedId, setExpandedId]       = useState<string | null>(null)
   const [draftRestored, setDraftRestored]   = useState(false)
   const [baseIsLocked, setBaseIsLocked]     = useState(false)  // true si viene de cierre anterior
+  const [showBaseModal, setShowBaseModal]   = useState(false) // modal al tocar base bloqueada
   const [adminResponse, setAdminResponse]   = useState<{status: 'approved' | 'rejected'; note: string | null} | null>(null)
 
   // Form
@@ -404,6 +405,26 @@ export default function CierreCajaPage() {
                 <p className="text-orange-400/70 text-xs">
                   Descuadre de <span className="font-bold text-orange-300">{cop(Math.abs(pendingDraft.difference))}</span> — el admin debe revisarlo antes de que puedas registrar otro cierre.
                 </p>
+              </div>
+            </div>
+          )}
+
+          {/* Modal base bloqueada */}
+          {showBaseModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+              onClick={() => setShowBaseModal(false)}>
+              <div className="w-full max-w-sm mx-4 rounded-3xl border border-yellow-400/30 bg-purple-900 p-6 space-y-4 text-center"
+                onClick={e => e.stopPropagation()}>
+                <p className="text-3xl">🔒</p>
+                <p className="text-white font-bold text-sm">Base bloqueada</p>
+                <p className="text-white/60 text-xs leading-relaxed">
+                  Esta base fue transferida automáticamente del cierre anterior y no puede ser modificada.<br /><br />
+                  Si hay un error, contacta al administrador para que la corrija desde el panel de cierres.
+                </p>
+                <button onClick={() => setShowBaseModal(false)}
+                  className="w-full py-2 rounded-xl text-xs font-bold bg-white/10 text-white hover:bg-white/20 transition-all">
+                  Entendido
+                </button>
               </div>
             </div>
           )}
