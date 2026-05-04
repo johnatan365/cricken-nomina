@@ -364,26 +364,42 @@ export default function CierreCajaPage() {
         </div>
       </div>
 
+      {/* Modal de mensajes */}
       {statusMsg && (
-        <div className={`rounded-2xl px-4 py-3 text-sm font-semibold border ${statusMsg.type === 'success' ? 'bg-emerald-500/20 border-emerald-400/30 text-emerald-300' : 'bg-red-500/20 border-red-400/30 text-red-300'}`}>
-          {statusMsg.msg}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => setStatusMsg(null)}>
+          <div className={`w-full max-w-sm mx-4 rounded-3xl border p-6 space-y-4 text-center ${
+            statusMsg.type === 'success'
+              ? 'bg-purple-900 border-emerald-400/30'
+              : 'bg-purple-900 border-red-400/30'
+          }`} onClick={e => e.stopPropagation()}>
+            <p className="text-3xl">{statusMsg.type === 'success' ? '✅' : '❌'}</p>
+            <p className={`font-bold text-sm ${statusMsg.type === 'success' ? 'text-emerald-300' : 'text-red-300'}`}>
+              {statusMsg.msg}
+            </p>
+            <button onClick={() => setStatusMsg(null)}
+              className={`w-full py-2 rounded-xl text-xs font-bold transition-all ${
+                statusMsg.type === 'success'
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 hover:bg-emerald-500/30'
+                  : 'bg-red-500/20 text-red-300 border border-red-400/30 hover:bg-red-500/30'
+              }`}>
+              Cerrar
+            </button>
+          </div>
         </div>
       )}
 
       {activeTab === 'form' && (
         <div className="space-y-3">
-          {/* Bloqueo por borrador pendiente de aprobación */}
+          {/* Banner de cierre pendiente — siempre visible cuando hay borrador */}
           {pendingDraft && (
-            <div className="rounded-2xl px-4 py-4 border bg-orange-500/15 border-orange-400/30 space-y-2">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">⏳</span>
-                <div>
-                  <p className="text-orange-300 font-bold text-sm">Cierre en espera de aprobación</p>
-                  <p className="text-orange-400/70 text-xs mt-0.5">
-                    Enviaste un cierre con descuadre de <span className="font-bold text-orange-300">{cop(Math.abs(pendingDraft.difference))}</span>.
-                    El admin debe revisarlo antes de que puedas registrar otro cierre.
-                  </p>
-                </div>
+            <div className="rounded-2xl px-4 py-3 border bg-orange-500/15 border-orange-400/30 flex items-center gap-3">
+              <span className="text-xl flex-shrink-0">⏳</span>
+              <div>
+                <p className="text-orange-300 font-bold text-sm">Cierre en espera de aprobación</p>
+                <p className="text-orange-400/70 text-xs">
+                  Descuadre de <span className="font-bold text-orange-300">{cop(Math.abs(pendingDraft.difference))}</span> — el admin debe revisarlo antes de que puedas registrar otro cierre.
+                </p>
               </div>
             </div>
           )}
@@ -421,9 +437,22 @@ export default function CierreCajaPage() {
           )}
 
           {draftRestored && (
-            <div className="rounded-2xl px-4 py-2 text-xs font-semibold border bg-purple-500/20 border-purple-400/30 text-purple-200 flex items-center gap-2">
-              <span>⚡</span><span>Borrador recuperado — continuás donde lo dejaste.</span>
-              <button onClick={resetForm} className="ml-auto text-purple-300 hover:text-white underline">Limpiar</button>
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+              <div className="w-full max-w-sm mx-4 rounded-3xl border border-purple-400/30 bg-purple-900 p-6 space-y-4 text-center">
+                <p className="text-3xl">⚡</p>
+                <p className="text-white font-bold text-sm">Borrador recuperado</p>
+                <p className="text-white/60 text-xs">Continuás donde lo dejaste antes del corte.</p>
+                <div className="flex gap-3">
+                  <button onClick={resetForm}
+                    className="flex-1 py-2 rounded-xl text-xs font-bold bg-white/10 text-white/60 hover:bg-white/20 transition-all">
+                    Limpiar y empezar de nuevo
+                  </button>
+                  <button onClick={() => setDraftRestored(false)}
+                    className="flex-1 py-2 rounded-xl text-xs font-bold bg-yellow-400 text-purple-900 transition-all">
+                    Continuar
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 

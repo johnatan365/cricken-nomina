@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns'
 import { es } from 'date-fns/locale'
 
@@ -71,6 +71,12 @@ export default function AdminCierreCajaPage() {
   const [shiftFilter, setShiftFilter] = useState('')
   const [workerFilter, setWorkerFilter] = useState('')
   const [expanded, setExpanded]       = useState<string | null>(null)
+  const expandedRef = useRef<string | null>(null)
+  const toggleExpanded = (id: string) => {
+    const next = expandedRef.current === id ? null : id
+    expandedRef.current = next
+    setExpanded(next)
+  }
   const [onlyIssues, setOnlyIssues]   = useState(false)
   const [baseRequests, setBaseRequests] = useState<BaseChangeRequest[]>([])
   const [processingId, setProcessingId]   = useState<string | null>(null)
@@ -127,6 +133,7 @@ export default function AdminCierreCajaPage() {
     await fetch('/api/admin/cash-registers?id=' + id, { method: 'DELETE' })
     setDeletingId(null)
     setExpanded(null)
+    expandedRef.current = null
     loadData()
   }
 
@@ -141,11 +148,16 @@ export default function AdminCierreCajaPage() {
     })
     setSavingBase(null)
     if (res.ok) {
-      // Actualizar localmente sin recargar ni cerrar el panel
+      const savedExpanded = expandedRef.current
       setRegisters(prev => prev.map(r =>
         r.id === registerId ? { ...r, next_base: parseFloat(newBase) } : r
       ))
       setEditingBase(prev => { const n = {...prev}; delete n[registerId]; return n })
+      // Restaurar expanded después del re-render
+      setTimeout(() => {
+        expandedRef.current = savedExpanded
+        setExpanded(savedExpanded)
+      }, 0)
     }
   }
 
@@ -405,7 +417,7 @@ export default function AdminCierreCajaPage() {
             return (
               <div key={r.id}
                 className={`card cursor-pointer transition-all ${hasIssue ? 'border-red-400/40 bg-red-500/5' : ''}`}
-                onClick={() => setExpanded(expanded === r.id ? null : r.id)}>
+                onClick={() => toggleExpanded(r.id)}>
 
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0 flex items-center gap-3">
