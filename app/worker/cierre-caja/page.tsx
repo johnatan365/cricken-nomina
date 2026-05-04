@@ -230,10 +230,12 @@ export default function CierreCajaPage() {
   function dismissAdminResponse() {
     if (adminResponse?.status === 'approved') {
       resetForm()
-      // Marcar el borrador como visto — llamar API para eliminarlo
+      // Marcar el borrador como visto
       if (worker) {
         fetch('/api/worker/cash-register-draft/dismiss?worker_id=' + worker.id, { method: 'DELETE' })
       }
+      // Recargar para obtener la base del cierre aprobado
+      loadData()
     }
     setAdminResponse(null)
   }
