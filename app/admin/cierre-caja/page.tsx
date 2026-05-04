@@ -82,15 +82,15 @@ export default function AdminCierreCajaPage() {
   const [diffNotes, setDiffNotes]           = useState<Record<string, string>>({})
   const [processingDiffId, setProcessingDiffId] = useState<string | null>(null)
 
-  const loadData = useCallback(async () => {
-    setLoading(true)
+  const loadData = useCallback(async (keepExpanded = false) => {
+    if (!keepExpanded) setLoading(true)
     const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo })
     if (shiftFilter)  params.set('shift', shiftFilter)
     if (workerFilter) params.set('worker_id', workerFilter)
     const res  = await fetch('/api/admin/cash-registers?' + params)
     const json = await res.json()
     setRegisters(json.registers || [])
-    setLoading(false)
+    if (!keepExpanded) setLoading(false)
   }, [dateFrom, dateTo, shiftFilter, workerFilter])
 
   const loadDiffRequests = useCallback(async () => {
@@ -110,7 +110,7 @@ export default function AdminCierreCajaPage() {
     })
     setProcessingDiffId(null)
     loadDiffRequests()
-    loadData()
+    loadData()  // recargar para mostrar el cierre aprobado en la lista
   }
 
   const loadBaseRequests = useCallback(async () => {

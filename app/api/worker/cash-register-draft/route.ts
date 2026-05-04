@@ -85,3 +85,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Error interno' }, { status: 500 })
   }
 }
+
+// DELETE — marcar borrador como visto (dismiss) después de que el admin lo resolvió
+export async function DELETE(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url)
+    const worker_id = searchParams.get('worker_id')
+    if (!worker_id) return NextResponse.json({ error: 'worker_id requerido' }, { status: 400 })
+
+    const supabase = createAdminClient()
+    // Solo eliminar borradores ya resueltos (approved o rejected)
+    await supabase
+      .from('cash_register_drafts')
+      .delete()
+      .eq('worker_id', worker_id)
+      .in('status', ['approved', 'rejected'])
+
+    return NextResponse.json({ ok: true })
+  } catch {
+    return NextResponse.json({ error: 'Error interno' }, { status: 500 })
+  }
+}

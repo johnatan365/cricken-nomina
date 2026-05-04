@@ -81,7 +81,8 @@ export default function CierreCajaPage() {
   const [statusMsg, setStatusMsg]         = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
   const [activeTab, setActiveTab]         = useState<'form' | 'historial'>('form')
   const [expandedId, setExpandedId]       = useState<string | null>(null)
-  const [draftRestored, setDraftRestored] = useState(false)
+  const [draftRestored, setDraftRestored]   = useState(false)
+  const [adminResponse, setAdminResponse]   = useState<{status: 'approved' | 'rejected'; note: string | null} | null>(null)
 
   // Form
   const [shift, setShift]                       = useState<Shift>('morning')
@@ -174,14 +175,27 @@ export default function CierreCajaPage() {
     setRegisters(json.registers || [])
     setHasPendingBase(json.hasPendingBaseRequest || false)
     setHasPendingDiff(json.hasPendingDifference || false)
-    // Verificar si hay borrador pendiente de aprobación
+    // Verificar estado del borrador
     const draftRes  = await fetch('/api/worker/cash-register-draft?worker_id=' + w.id)
     const draftJson = await draftRes.json()
-    if (draftJson.draft?.status === 'pending_approval') {
-      setPendingDraft(draftJson.draft)
+    const draft = draftJson.draft
+
+    if (draft?.status === 'pending_approval') {
+      setPendingDraft(draft)
       setHasPendingDiff(true)
+    } else if (draft?.status === 'approved') {
+      // Admin aprobó → mostrar modal y limpiar
+      setAdminResponse({ status: 'approved', note: draft.admin_note })
+      setPendingDraft(null)
+      setHasPendingDiff(false)
+    } else if (draft?.status === 'rejected') {
+      // Admin rechazó → mostrar modal pero mantener datos
+      setAdminResponse({ status: 'rejected', note: draft.admin_note })
+      setPendingDraft(null)
+      setHasPendingDiff(false)
     } else {
       setPendingDraft(null)
+      setHasPendingDiff(false)
     }
     if (json.suggestedBase > 0 && !loadDraft()?.openingFund) {
       setSuggestedBase(json.suggestedBase)
@@ -195,6 +209,17 @@ export default function CierreCajaPage() {
   function showMsg(type: 'success' | 'error', msg: string) {
     setStatusMsg({ type, msg })
     setTimeout(() => setStatusMsg(null), 6000)
+  }
+
+  function dismissAdminResponse() {
+    if (adminResponse?.status === 'approved') {
+      resetForm()
+      // Marcar el borrador como visto — llamar API para eliminarlo
+      if (worker) {
+        fetch('/api/worker/cash-register-draft/dismiss?worker_id=' + worker.id, { method: 'DELETE' })
+      }
+    }
+    setAdminResponse(null)
   }
 
   function resetForm() {
@@ -359,6 +384,38 @@ export default function CierreCajaPage() {
                     El admin debe revisarlo antes de que puedas registrar otro cierre.
                   </p>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Modal respuesta del admin */}
+          {adminResponse && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+              <div className={`w-full max-w-sm mx-4 rounded-3xl border p-6 space-y-4 ${
+                adminResponse.status === 'approved'
+                  ? 'bg-purple-900 border-emerald-400/30'
+                  : 'bg-purple-900 border-red-400/30'
+              }`}>
+                <div className="text-center space-y-2">
+                  <p className="text-4xl">{adminResponse.status === 'approved' ? '✅' : '❌'}</p>
+                  <p className={`font-bold text-lg ${adminResponse.status === 'approved' ? 'text-emerald-300' : 'text-red-300'}`}>
+                    {adminResponse.status === 'approved' ? 'Cierre aprobado' : 'Cierre rechazado'}
+                  </p>
+                  <p className="text-white/60 text-sm">
+                    {adminResponse.status === 'approved'
+                      ? 'El admin revisó y aprobó tu cierre. Puedes registrar el siguiente turno.'
+                      : 'El admin rechazó tu cierre. Revisa los datos y vuelve a enviarlo.'}
+                  </p>
+                  {adminResponse.note && (
+                    <div className="bg-white/10 rounded-2xl px-4 py-3 text-left">
+                      <p className="text-white/40 text-xs font-semibold mb-1">Nota del admin</p>
+                      <p className="text-white text-sm">{adminResponse.note}</p>
+                    </div>
+                  )}
+                </div>
+                <button onClick={dismissAdminResponse} className="btn-primary w-full">
+                  {adminResponse.status === 'approved' ? 'Entendido — limpiar formulario' : 'Entendido — corregir cierre'}
+                </button>
               </div>
             </div>
           )}
