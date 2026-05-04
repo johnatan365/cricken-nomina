@@ -82,6 +82,7 @@ export default function CierreCajaPage() {
   const [activeTab, setActiveTab]         = useState<'form' | 'historial'>('form')
   const [expandedId, setExpandedId]       = useState<string | null>(null)
   const [draftRestored, setDraftRestored]   = useState(false)
+  const [baseIsLocked, setBaseIsLocked]     = useState(false)  // true si viene de cierre anterior
   const [adminResponse, setAdminResponse]   = useState<{status: 'approved' | 'rejected'; note: string | null} | null>(null)
 
   // Form
@@ -200,6 +201,9 @@ export default function CierreCajaPage() {
     if (json.suggestedBase > 0 && !loadDraft()?.openingFund) {
       setSuggestedBase(json.suggestedBase)
       setOpeningFund(String(json.suggestedBase))
+      setBaseIsLocked(true)   // bloquear — viene de cierre anterior
+    } else if (!json.suggestedBase || json.suggestedBase === 0) {
+      setBaseIsLocked(false)  // primer turno — puede ingresar manualmente
     }
     setLoading(false)
   }, [])
@@ -228,7 +232,7 @@ export default function CierreCajaPage() {
     setPuveTransfers([{ amount: '' }])
     setDidiOrders([]); setWhatsappOrders([])
     setCashToOwner(''); setDifferenceNote('')
-    setDraftRestored(false); clearDraft()
+    setDraftRestored(false); setBaseIsLocked(false); clearDraft()
   }
 
   // ── Handlers Enter ──
@@ -468,9 +472,20 @@ export default function CierreCajaPage() {
             </div>
             <div className="flex items-center gap-2">
               <label className="text-white/50 text-xs font-semibold whitespace-nowrap">Base recibida:</label>
-              <input type="number" min="0" value={openingFund} onChange={e => setOpeningFund(e.target.value)}
-                className="w-32 bg-white/10 border border-white/15 rounded-lg px-3 py-1.5 text-white text-sm font-bold focus:outline-none focus:border-yellow-400/60 transition-all" placeholder="0" />
-              {suggestedBase > 0 && openingFund === String(suggestedBase) && <span className="text-yellow-400/60 text-xs">✓ anterior</span>}
+              {baseIsLocked ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-32 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-emerald-400 text-sm font-bold cursor-not-allowed">
+                    {cop(n(openingFund))}
+                  </div>
+                  <span className="text-emerald-400/60 text-xs">🔒 del cierre anterior</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <input type="number" min="0" value={openingFund} onChange={e => setOpeningFund(e.target.value)}
+                    className="w-32 bg-white/10 border border-white/15 rounded-lg px-3 py-1.5 text-white text-sm font-bold focus:outline-none focus:border-yellow-400/60 transition-all" placeholder="0" />
+                  <span className="text-white/30 text-xs">Primer turno</span>
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <label className="text-white/50 text-xs font-semibold whitespace-nowrap">Total ventas Puve:</label>
