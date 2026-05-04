@@ -501,7 +501,7 @@ export default function AdminCierreCajaPage() {
                       </button>
                     </div>
 
-                    {/* Nota de descuadre */}}
+                    {/* Nota de descuadre */}
                     {r.difference_note && (
                       <div className={`rounded-xl px-4 py-3 border ${
                         hasIssue
