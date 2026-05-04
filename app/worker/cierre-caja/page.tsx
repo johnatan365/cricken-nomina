@@ -135,7 +135,11 @@ export default function CierreCajaPage() {
   const puveOk   = puveDiff === null || Math.abs(puveDiff) < 1
 
   const nextBase      = cashToOwner !== '' ? cashCounted - n(cashToOwner) : null
-  const needsNote     = Math.abs(difference) >= 1 && cashCounted > 0
+  // needsNote solo cuando la diferencia requiere aprobación
+  const needsNote = cashCounted > 0 && (
+    (difference < 0 && Math.abs(difference) >= 2000) ||
+    (difference > 0 && difference >= 10000)
+  )
 
   // Cargar borrador
   useEffect(() => {
@@ -250,7 +254,9 @@ export default function CierreCajaPage() {
     if (!puveTotalReported) { showMsg('error', 'Ingresa el Total ventas Puve'); return }
     if (cashToOwner === '') { showMsg('error', 'Ingresa cuánto vas a dejar en el sobre'); return }
 
-    const hasDiff = Math.abs(difference) >= 1
+    // Requiere aprobación si: faltante >= $2.000 o sobrante >= $10.000
+    const hasDiff = (difference < 0 && Math.abs(difference) >= 2000) ||
+                    (difference > 0 && difference >= 10000)
     if (hasDiff && !differenceNote.trim()) {
       showMsg('error', 'Hay un descuadre — la nota es obligatoria')
       return
