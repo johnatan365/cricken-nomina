@@ -134,14 +134,19 @@ export default function AdminCierreCajaPage() {
     const newBase = editingBase[registerId]
     if (!newBase) return
     setSavingBase(registerId)
-    await fetch('/api/admin/cash-registers/edit-base', {
+    const res = await fetch('/api/admin/cash-registers/edit-base', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: registerId, next_base: parseFloat(newBase) }),
     })
     setSavingBase(null)
-    setEditingBase(prev => { const n = {...prev}; delete n[registerId]; return n })
-    loadData()
+    if (res.ok) {
+      // Actualizar localmente sin recargar ni cerrar el panel
+      setRegisters(prev => prev.map(r =>
+        r.id === registerId ? { ...r, next_base: parseFloat(newBase) } : r
+      ))
+      setEditingBase(prev => { const n = {...prev}; delete n[registerId]; return n })
+    }
   }
 
   async function resolveRequest(id: string, status: 'approved' | 'rejected') {
