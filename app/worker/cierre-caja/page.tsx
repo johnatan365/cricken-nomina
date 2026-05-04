@@ -405,7 +405,7 @@ export default function CierreCajaPage() {
 
           {/* Grid 6 columnas con scroll horizontal */}
           <div className="overflow-x-auto pb-2">
-            <div className="grid gap-3 items-start" style={{ gridTemplateColumns: 'repeat(6, minmax(185px, 1fr))', minWidth: '1120px' }}>
+            <div className="grid gap-3 items-start" style={{ gridTemplateColumns: 'repeat(5, minmax(200px, 1fr))', minWidth: '1000px' }}>
 
               {/* COL 1 — Efectivo */}
               <Col title="Efectivo en Caja">
@@ -454,8 +454,9 @@ export default function CierreCajaPage() {
                 </div>
               </Col>
 
-              {/* COL 3 — Didi */}
-              <Col title="Pedidos Didi">
+              {/* COL 3 — Didi + WhatsApp */}
+              <Col title="Didi / WhatsApp">
+                <p className="text-white/40 text-xs font-semibold">Pedidos Didi</p>
                 <p className="text-white/30 text-xs pb-1">↵ No. → Efectivo → nuevo</p>
                 {didiOrders.length === 0 && <p className="text-white/20 text-xs text-center py-2">Sin pedidos Didi</p>}
                 {didiOrders.map((o, i) => (
@@ -499,12 +500,11 @@ export default function CierreCajaPage() {
                     <Row label="Total Didi"                   value={didiCash + didiTransTotal} color="text-yellow-400" bold />
                   </div>
                 )}
-              </Col>
 
-              {/* COL 4 — WhatsApp + Cancelados */}
-              <Col title="WhatsApp">
-                <p className="text-white/40 text-xs font-semibold">Pedidos WhatsApp (efectivo)</p>
-                <p className="text-white/25 text-xs">↵ Enter para agregar otro</p>
+                {/* WhatsApp */}
+                <Divider />
+                <p className="text-white/40 text-xs font-semibold">Pedidos WhatsApp</p>
+                <p className="text-white/25 text-xs">Efectivo · ↵ para agregar otro</p>
                 {whatsappOrders.map((o, i) => (
                   <div key={i} className="flex gap-1">
                     <input ref={el => { whatsappRefs.current[i] = el }} type="number" min="0" value={o.amount}
@@ -522,7 +522,6 @@ export default function CierreCajaPage() {
                     <Row label="Total WhatsApp" value={whatsappTotal} color="text-yellow-400" bold />
                   </div>
                 )}
-
               </Col>
 
               {/* COL 5 — Proveedores */}

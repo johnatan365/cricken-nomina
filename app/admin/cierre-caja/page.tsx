@@ -76,6 +76,7 @@ export default function AdminCierreCajaPage() {
   const [processingId, setProcessingId]   = useState<string | null>(null)
   const [editingBase, setEditingBase]     = useState<Record<string, string>>({})
   const [savingBase, setSavingBase]       = useState<string | null>(null)
+  const [deletingId, setDeletingId]       = useState<string | null>(null)
   const [adminNotes, setAdminNotes]         = useState<Record<string, string>>({})
   const [diffRequests, setDiffRequests]     = useState<DifferenceRequest[]>([])
   const [diffNotes, setDiffNotes]           = useState<Record<string, string>>({})
@@ -119,6 +120,15 @@ export default function AdminCierreCajaPage() {
   }, [])
 
   useEffect(() => { loadBaseRequests() }, [loadBaseRequests])
+
+  async function deleteRegister(id: string) {
+    if (!confirm('¿Eliminar este cierre? Esta acción no se puede deshacer.')) return
+    setDeletingId(id)
+    await fetch('/api/admin/cash-registers?id=' + id, { method: 'DELETE' })
+    setDeletingId(null)
+    setExpanded(null)
+    loadData()
+  }
 
   async function saveBase(registerId: string) {
     const newBase = editingBase[registerId]
@@ -308,16 +318,16 @@ export default function AdminCierreCajaPage() {
         </div>
       )}
 
-      {/* Alerta descuadres */}
-      {!loading && withIssues > 0 && (
+      {/* Alerta descuadres — solo si hay borradores pendientes de aprobación */}
+      {diffRequests.length > 0 && (
         <div className="rounded-2xl px-4 py-3 border bg-red-500/15 border-red-400/30 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="text-2xl">⚠️</span>
             <div>
               <p className="text-red-300 font-bold text-sm">
-                {withIssues} cierre{withIssues > 1 ? 's' : ''} con descuadre en este período
+                {diffRequests.length} cierre{diffRequests.length > 1 ? 's' : ''} con descuadre esperando tu aprobación
               </p>
-              <p className="text-red-400/70 text-xs">Revisa los cierres marcados en rojo</p>
+              <p className="text-red-400/70 text-xs">El trabajador está bloqueado hasta que apruebes cada uno</p>
             </div>
           </div>
           <button
@@ -444,13 +454,11 @@ export default function AdminCierreCajaPage() {
                         ['Didi efectivo',      r.didi_cash_total],
                         ['Didi transf.',       r.didi_transfer_total],
                         ['WhatsApp',           r.whatsapp_total],
-                        ['Cancelados (−)',     r.cancelled_total],
                         ['Proveedores (−)',    r.supplier_total],
                         ['Total ventas real',  r.total_real_sales],
                         ['Efectivo esperado',  r.expected_cash],
                         ['Efectivo contado',   r.cash_counted],
                         ['Entregado en sobre', r.cash_to_owner],
-                        ['Base sig. día',      r.next_base],
                       ] as [string, number][]).map(([label, value]) => (
                         <div key={label} className="bg-white/5 rounded-xl px-3 py-2">
                           <p className="text-white/40 text-xs">{label}</p>
@@ -459,7 +467,41 @@ export default function AdminCierreCajaPage() {
                       ))}
                     </div>
 
-                    {/* Nota de descuadre — destacada si hay problema */}
+                    {/* Editor base siguiente día — solo admin */}
+                    <div className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-400/20 rounded-2xl px-4 py-3">
+                      <div className="flex-1">
+                        <p className="text-emerald-300 text-sm font-bold">Base siguiente día</p>
+                        <p className="text-white/40 text-xs mt-0.5">Solo el admin puede modificar este valor</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number" min="0"
+                          value={editingBase[r.id] ?? r.next_base}
+                          onChange={e => setEditingBase(prev => ({ ...prev, [r.id]: e.target.value }))}
+                          className="w-36 bg-white/10 border border-emerald-400/30 rounded-xl px-3 py-1.5 text-white text-sm font-bold focus:outline-none focus:border-emerald-400/60 transition-all"
+                        />
+                        {editingBase[r.id] !== undefined && String(editingBase[r.id]) !== String(r.next_base) && (
+                          <button
+                            onClick={() => saveBase(r.id)}
+                            disabled={savingBase === r.id}
+                            className="px-4 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 hover:bg-emerald-500/30 transition-all disabled:opacity-50">
+                            {savingBase === r.id ? '...' : 'Guardar'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Botón eliminar */}
+                    <div className="flex justify-end">
+                      <button
+                        onClick={() => deleteRegister(r.id)}
+                        disabled={deletingId === r.id}
+                        className="text-xs font-bold px-4 py-2 rounded-xl bg-red-500/15 text-red-300 border border-red-400/25 hover:bg-red-500/25 transition-all disabled:opacity-50">
+                        {deletingId === r.id ? 'Eliminando...' : '🗑 Eliminar cierre'}
+                      </button>
+                    </div>
+
+                    {/* Nota de descuadre */}}
                     {r.difference_note && (
                       <div className={`rounded-xl px-4 py-3 border ${
                         hasIssue
