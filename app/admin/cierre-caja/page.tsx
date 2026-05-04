@@ -72,11 +72,6 @@ export default function AdminCierreCajaPage() {
   const [workerFilter, setWorkerFilter] = useState('')
   const [expanded, setExpanded]       = useState<string | null>(null)
   const expandedRef = useRef<string | null>(null)
-  const toggleExpanded = (id: string) => {
-    const next = expandedRef.current === id ? null : id
-    expandedRef.current = next
-    setExpanded(next)
-  }
   const [onlyIssues, setOnlyIssues]   = useState(false)
   const [baseRequests, setBaseRequests] = useState<BaseChangeRequest[]>([])
   const [processingId, setProcessingId]   = useState<string | null>(null)
@@ -420,7 +415,11 @@ export default function AdminCierreCajaPage() {
             return (
               <div key={r.id}
                 className={`card cursor-pointer transition-all ${hasIssue ? 'border-red-400/40 bg-red-500/5' : ''}`}
-                onClick={() => toggleExpanded(r.id)}>
+                onClick={() => {
+                  const next = expandedRef.current === r.id ? null : r.id
+                  expandedRef.current = next
+                  setExpanded(next)
+                }}>
 
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0 flex items-center gap-3">
