@@ -536,9 +536,9 @@ export default function AdminCierreCajaPage() {
           })}
         </div>
       )}
-    </div>
 
-      {detailModal && (
+      {/* Modal detalle */}
+      {detailModal !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
           onClick={() => setDetailModal(null)}>
           <div className="w-full max-w-sm mx-4 bg-purple-900 rounded-3xl border border-white/20 p-5 space-y-3"
@@ -569,5 +569,6 @@ export default function AdminCierreCajaPage() {
           </div>
         </div>
       )}
+    </div>
   )
 }
