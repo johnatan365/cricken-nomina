@@ -4,14 +4,17 @@ import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 
 function getDeliveryDate(): string {
+  // 12am-1:59pm → mismo día
+  // 2pm-11:59pm → día siguiente
   const now    = new Date()
   const bogota = new Date(now.getTime() - 5 * 60 * 60 * 1000)
   const hour   = bogota.getUTCHours()
-  // Madrugada (0-11) → mismo día | Tarde/noche (12-23) → día siguiente
-  const target = hour < 12 ? bogota : new Date(bogota.getTime() + 24 * 60 * 60 * 1000)
-  const yyyy   = target.getUTCFullYear()
-  const mm     = String(target.getUTCMonth() + 1).padStart(2, '0')
-  const dd     = String(target.getUTCDate()).padStart(2, '0')
+  const target = hour < 14
+    ? bogota                                               // antes de las 2pm → mismo día
+    : new Date(bogota.getTime() + 24 * 60 * 60 * 1000)   // 2pm en adelante → día siguiente
+  const yyyy = target.getUTCFullYear()
+  const mm   = String(target.getUTCMonth() + 1).padStart(2, '0')
+  const dd   = String(target.getUTCDate()).padStart(2, '0')
   return `${yyyy}-${mm}-${dd}`
 }
 
