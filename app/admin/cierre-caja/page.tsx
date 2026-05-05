@@ -100,6 +100,9 @@ export default function AdminCierreCajaPage() {
       ...r,
       worker_name: r.worker?.full_name || 'Sin nombre',
       location_name: r.location?.name || null,
+      supplier_payments: typeof r.supplier_payments === 'string'
+        ? JSON.parse(r.supplier_payments)
+        : (r.supplier_payments || []),
     })))
     setLoading(false)
   }, [dateFrom, dateTo, shiftFilter, workerFilter])
