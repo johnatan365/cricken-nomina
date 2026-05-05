@@ -6,6 +6,8 @@ import { es } from 'date-fns/locale'
 
 type CashRegister = {
   id: string
+  worker: { full_name: string } | null
+  location: { name: string } | null
   worker_name: string
   location_name: string | null
   shift: 'morning' | 'afternoon'
@@ -92,7 +94,11 @@ export default function AdminCierreCajaPage() {
     if (workerFilter) params.set('worker_id', workerFilter)
     const res  = await fetch('/api/admin/cash-registers?' + params)
     const json = await res.json()
-    setRegisters(json.registers || [])
+    setRegisters((json.registers || []).map((r: CashRegister) => ({
+      ...r,
+      worker_name: r.worker?.full_name || 'Sin nombre',
+      location_name: r.location?.name || null,
+    })))
     setLoading(false)
   }, [dateFrom, dateTo, shiftFilter, workerFilter])
 
