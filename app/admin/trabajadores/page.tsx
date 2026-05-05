@@ -320,7 +320,7 @@ export default function TrabajadoresPage() {
                     body: JSON.stringify({ id: selected.id, has_cash_order_access: newVal }),
                   })
                   setWorkers(prev => prev.map(w => w.id === selected.id ? { ...w, has_cash_order_access: newVal } : w))
-                  setSelected((prev: WorkerWithRates) => prev ? { ...prev, has_cash_order_access: newVal } : prev)
+                  setSelected((prev: WorkerWithRates | null) => prev ? { ...prev, has_cash_order_access: newVal } : prev)
                   showStatus('success', newVal ? 'Acceso a pedido caja activado' : 'Acceso a pedido caja desactivado')
                 }}
                   className={`relative w-12 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${selected.has_cash_order_access ? 'bg-yellow-400' : 'bg-white/20'}`}>
