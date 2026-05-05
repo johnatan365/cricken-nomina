@@ -77,6 +77,7 @@ export default function CierreCajaPage() {
   const [registers, setRegisters]         = useState<CashRegister[]>([])
   const [suggestedBase, setSuggestedBase] = useState(0)
   const [loading, setLoading]             = useState(true)
+  const [dataLoaded, setDataLoaded]       = useState(false)
   const [saving, setSaving]               = useState(false)
   const [statusMsg, setStatusMsg]         = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
   const [activeTab, setActiveTab]         = useState<'form' | 'historial'>('form')
@@ -221,6 +222,7 @@ export default function CierreCajaPage() {
       setBaseIsLocked(false)  // primer turno — puede ingresar manualmente
     }
     setLoading(false)
+    setDataLoaded(true)
   }, [])
 
   useEffect(() => { loadData() }, [loadData])
