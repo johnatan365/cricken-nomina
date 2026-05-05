@@ -28,9 +28,6 @@ type CashRegister = {
   difference: number
   difference_note: string | null
   supplier_payments: {description: string; amount: string}[]
-  puve_transfers: {amount: string}[]
-  didi_orders: {order_id: string; cash: string; transfers: {amount: string}[]}[]
-  whatsapp_orders: {amount: string}[]
   submitted_at: string
 }
 
@@ -91,12 +88,6 @@ export default function AdminCierreCajaPage() {
   const [deletingId, setDeletingId]   = useState<string | null>(null)
 
   const editingBase = editingBaseRef.current
-  const [detailModal, setDetailModal] = useState<{
-    title: string
-    items: {label: string; value: number}[]
-    total: number
-    danger?: boolean
-  } | null>(null)
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -422,53 +413,39 @@ export default function AdminCierreCajaPage() {
                   <div className="mt-4 pt-4 border-t border-white/10 space-y-4">
                     <div className="grid grid-cols-4 gap-2">
                       {([
-                        ['Base recibida',     r.opening_fund],
-                        ['Total ventas Puve', r.puve_total_reported ?? 0],
-                        ['Puve efectivo',     r.puve_cash],
-                        ['Total ventas real', r.total_real_sales],
-                        ['Efectivo esperado', r.expected_cash],
-                        ['Efectivo contado',  r.cash_counted],
-                        ['Entregado en sobre',r.cash_to_owner],
-                        ['Dejado en caja',    r.next_base],
+                        ['Base recibida',      r.opening_fund],
+                        ['Total ventas Puve',  r.puve_total_reported ?? 0],
+                        ['Puve efectivo',      r.puve_cash],
+                        ['Transferencias',     r.puve_transfer],
+                        ['Didi efectivo',      r.didi_cash_total],
+                        ['Didi transf.',       r.didi_transfer_total],
+                        ['WhatsApp',           r.whatsapp_total],
+                        ['Proveedores (−)',    r.supplier_total],
+                        ['Total ventas real',  r.total_real_sales],
+                        ['Efectivo esperado',  r.expected_cash],
+                        ['Efectivo contado',   r.cash_counted],
+                        ['Dejado en caja (base)', r.next_base],
+                        ['Entregado en sobre',   r.cash_to_owner],
                       ] as [string, number][]).map(([label, value]) => (
                         <div key={label} className="bg-white/5 rounded-xl px-3 py-2">
                           <p className="text-white/40 text-xs">{label}</p>
                           <p className="text-white font-bold text-sm">{cop(Number(value))}</p>
                         </div>
                       ))}
-
-                      {/* Transferencias — modal */}
-                      <div className="bg-white/5 rounded-xl px-3 py-2 cursor-pointer hover:bg-white/10 transition-all"
-                        onClick={e => { e.stopPropagation(); setDetailModal({ title: 'Transferencias Puve', items: ((r as any).puve_transfers || []).map((t: {amount: string}, i: number) => ({ label: `Transferencia ${i+1}`, value: parseFloat(t.amount) || 0 })), total: r.puve_transfer }) }}>
-                        <p className="text-white/40 text-xs">Transferencias</p>
-                        <p className="text-white font-bold text-sm">{cop(r.puve_transfer)}</p>
-                        <p className="text-blue-400 text-xs mt-0.5">Ver detalle →</p>
-                      </div>
-
-                      {/* Didi — modal */}
-                      <div className="bg-white/5 rounded-xl px-3 py-2 cursor-pointer hover:bg-white/10 transition-all"
-                        onClick={e => { e.stopPropagation(); setDetailModal({ title: 'Pedidos Didi', items: ((r as any).didi_orders || []).map((o: {order_id: string; cash: string; transfers: {amount: string}[]}, i: number) => ({ label: `Pedido #${o.order_id || i+1}`, value: (parseFloat(o.cash) || 0) + (o.transfers || []).reduce((s: number, t: {amount: string}) => s + (parseFloat(t.amount) || 0), 0) })), total: r.didi_cash_total + r.didi_transfer_total }) }}>
-                        <p className="text-white/40 text-xs">Didi efectivo + transf.</p>
-                        <p className="text-white font-bold text-sm">{cop(r.didi_cash_total + r.didi_transfer_total)}</p>
-                        <p className="text-blue-400 text-xs mt-0.5">Ver detalle →</p>
-                      </div>
-
-                      {/* WhatsApp — modal */}
-                      <div className="bg-white/5 rounded-xl px-3 py-2 cursor-pointer hover:bg-white/10 transition-all"
-                        onClick={e => { e.stopPropagation(); setDetailModal({ title: 'Pedidos WhatsApp', items: ((r as any).whatsapp_orders || []).map((o: {amount: string}, i: number) => ({ label: `Pedido ${i+1}`, value: parseFloat(o.amount) || 0 })), total: r.whatsapp_total }) }}>
-                        <p className="text-white/40 text-xs">WhatsApp</p>
-                        <p className="text-white font-bold text-sm">{cop(r.whatsapp_total)}</p>
-                        <p className="text-blue-400 text-xs mt-0.5">Ver detalle →</p>
-                      </div>
-
-                      {/* Proveedores — modal */}
-                      <div className="bg-white/5 rounded-xl px-3 py-2 cursor-pointer hover:bg-white/10 transition-all"
-                        onClick={e => { e.stopPropagation(); setDetailModal({ title: 'Pagos a proveedores', items: ((r as any).supplier_payments || []).map((s: {description: string; amount: string}) => ({ label: s.description, value: parseFloat(s.amount) || 0 })), total: r.supplier_total, danger: true }) }}>
-                        <p className="text-white/40 text-xs">Proveedores (−)</p>
-                        <p className="text-red-300 font-bold text-sm">{cop(r.supplier_total)}</p>
-                        <p className="text-blue-400 text-xs mt-0.5">Ver detalle →</p>
-                      </div>
                     </div>
+
+                    {/* Detalle proveedores */}
+                    {r.supplier_payments && Array.isArray(r.supplier_payments) && r.supplier_payments.length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-white/40 text-xs font-semibold">Pagos a proveedores</p>
+                        {r.supplier_payments.map((s: {description: string; amount: string}, i: number) => (
+                          <div key={i} className="flex justify-between items-center bg-white/5 rounded-xl px-3 py-2">
+                            <span className="text-white/70 text-xs">{s.description}</span>
+                            <span className="text-red-300 text-xs font-bold">−{cop(parseFloat(s.amount) || 0)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
                     {/* Editor base siguiente día */}
                     <div className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-400/20 rounded-2xl px-4 py-3">
@@ -524,39 +501,6 @@ export default function AdminCierreCajaPage() {
               </div>
             )
           })}
-        </div>
-      )}
-
-      {/* Modal detalle */}
-      {detailModal !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-          onClick={() => setDetailModal(null)}>
-          <div className="w-full max-w-sm mx-4 bg-purple-900 rounded-3xl border border-white/20 p-5 space-y-3"
-            onClick={e => e.stopPropagation()}>
-            <p className="text-white font-bold text-sm">{detailModal.title}</p>
-            <div className="space-y-1.5 overflow-y-auto" style={{ maxHeight: '50vh' }}>
-              {detailModal.items.length === 0 ? (
-                <p className="text-white/40 text-xs text-center py-3">Sin registros</p>
-              ) : detailModal.items.map((item, i) => (
-                <div key={i} className="flex justify-between items-center bg-white/5 rounded-xl px-3 py-2">
-                  <span className="text-white/70 text-xs flex-1 pr-2">{item.label}</span>
-                  <span className={`text-xs font-bold ${detailModal.danger ? 'text-red-300' : 'text-white'}`}>
-                    {detailModal.danger ? '−' : ''}{cop(item.value)}
-                  </span>
-                </div>
-              ))}
-            </div>
-            <div className="flex justify-between items-center border-t border-white/15 pt-2">
-              <span className="text-white/60 text-xs font-semibold">Total</span>
-              <span className={`text-sm font-bold ${detailModal.danger ? 'text-red-300' : 'text-white'}`}>
-                {detailModal.danger ? '−' : ''}{cop(detailModal.total)}
-              </span>
-            </div>
-            <button onClick={() => setDetailModal(null)}
-              className="w-full py-2 rounded-xl text-xs font-bold bg-white/10 text-white hover:bg-white/20 transition-all">
-              Cerrar
-            </button>
-          </div>
         </div>
       )}
     </div>
