@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -9,20 +9,24 @@ type OrderItem = { product_id: string; qty_delivered: number | null; product: Pr
 type Order = { id: string; delivery_date: string; status: string; items: OrderItem[] }
 
 export default function PedidoPage() {
-  const [worker, setWorker]       = useState<{ id: string; full_name: string } | null>(null)
-  const [products, setProducts]   = useState<Product[]>([])
-  const [order, setOrder]         = useState<Order | null>(null)
+  const [worker, setWorker]         = useState<{ id: string; full_name: string } | null>(null)
+  const [products, setProducts]     = useState<Product[]>([])
+  const [order, setOrder]           = useState<Order | null>(null)
   const [deliveryDate, setDeliveryDate] = useState('')
   const [quantities, setQuantities] = useState<Record<string, number>>({})
   const [deliveries, setDeliveries] = useState<Record<string, string>>({})
-  const [loading, setLoading]     = useState(true)
-  const [saving, setSaving]       = useState(false)
-  const [msg, setMsg]             = useState<{ type: 'success' | 'error'; text: string } | null>(null)
-  const [tab, setTab]             = useState<'order' | 'delivery'>('order')
+  const [loading, setLoading]       = useState(true)
+  const [saving, setSaving]         = useState(false)
+  const [modal, setModal]           = useState<{ type: 'success'|'error'|'confirm'; text: string; onConfirm?: () => void } | null>(null)
+  const [tab, setTab]               = useState<'order'|'delivery'>('order')
+  const [search, setSearch]         = useState('')
 
-  const showMsg = (type: 'success' | 'error', text: string) => {
-    setMsg({ type, text })
-    setTimeout(() => setMsg(null), 4000)
+  // Refs para Enter en celular
+  const qtyRefs  = useRef<(HTMLInputElement | null)[]>([])
+  const delRefs  = useRef<(HTMLInputElement | null)[]>([])
+
+  const showModal = (type: 'success'|'error'|'confirm', text: string, onConfirm?: () => void) => {
+    setModal({ type, text, onConfirm })
   }
 
   const loadData = useCallback(async () => {
@@ -37,39 +41,47 @@ export default function PedidoPage() {
     setDeliveryDate(json.deliveryDate)
     if (json.order) {
       setOrder(json.order)
-      // Pre-cargar cantidades del pedido existente
-      const qty: Record<string, number> = {}
       const del: Record<string, string> = {}
       json.order.items?.forEach((item: OrderItem) => {
-        qty[item.product_id] = 0
         if (item.qty_delivered !== null) del[item.product_id] = String(item.qty_delivered)
       })
-      setQuantities(qty)
       setDeliveries(del)
-      if (json.order.status === 'pending') setTab('delivery')
+      setTab(json.order.status === 'delivered' ? 'delivery' : 'delivery')
     }
     setLoading(false)
   }, [])
 
   useEffect(() => { loadData() }, [loadData])
 
+  // Filtrar productos según búsqueda
+  const filteredProducts = products.filter(p =>
+    p.name.toLowerCase().includes(search.toLowerCase())
+  )
+
+  // Contar productos con cantidad > 0
+  const itemsWithQty = products.filter(p => (quantities[p.id] || 0) > 0)
+
   async function submitOrder() {
     if (!worker) return
-    const items = products.map(p => ({ product_id: p.id, name: p.name, qty_requested: quantities[p.id] || 0 }))
-    const hasItems = items.some(i => i.qty_requested > 0)
-    if (!hasItems) { showMsg('error', 'Agrega al menos un producto con cantidad'); return }
-    setSaving(true)
-    const res = await fetch('/api/worker/kitchen-order', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ worker_id: worker.id, items, delivery_date: deliveryDate }),
+    if (itemsWithQty.length === 0) {
+      showModal('error', 'Agrega al menos un producto con cantidad')
+      return
+    }
+    showModal('confirm', `¿Enviar pedido con ${itemsWithQty.length} productos para el ${format(parseISO(deliveryDate), "d 'de' MMMM", { locale: es })}?`, async () => {
+      setModal(null)
+      setSaving(true)
+      const items = products.map(p => ({ product_id: p.id, name: p.name, qty_requested: quantities[p.id] || 0 }))
+      const res = await fetch('/api/worker/kitchen-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ worker_id: worker.id, items, delivery_date: deliveryDate }),
+      })
+      const json = await res.json()
+      setSaving(false)
+      if (!res.ok) { showModal('error', json.error || 'Error al enviar'); return }
+      showModal('success', '✅ Pedido enviado correctamente')
+      loadData()
     })
-    const json = await res.json()
-    setSaving(false)
-    if (!res.ok) { showMsg('error', json.error || 'Error al enviar'); return }
-    showMsg('success', '✅ Pedido enviado — WhatsApp notificado')
-    loadData()
-    setTab('delivery')
   }
 
   async function submitDelivery() {
@@ -85,131 +97,206 @@ export default function PedidoPage() {
       body: JSON.stringify({ order_id: order.id, deliveries: dels }),
     })
     setSaving(false)
-    if (res.ok) { showMsg('success', '✅ Entrega confirmada'); loadData() }
-    else showMsg('error', 'Error al confirmar')
+    if (res.ok) { showModal('success', '✅ Entrega confirmada'); loadData() }
+    else showModal('error', 'Error al confirmar entrega')
   }
 
-  if (loading) return <div className="flex items-center justify-center min-h-[40vh]"><p className="text-white/40">Cargando...</p></div>
-
-  const orderedItems = order?.items || []
-  const totalRequested = Object.values(quantities).reduce((s, v) => s + v, 0)
+  if (loading) return (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <p className="text-white/40 text-sm">Cargando...</p>
+    </div>
+  )
 
   return (
-    <div className="max-w-2xl mx-auto space-y-4">
-      <div>
-        <h1 className="page-title">Pedido de Cocina</h1>
-        <p className="text-muted text-xs mt-0.5">
-          {worker?.full_name} · Entrega: {deliveryDate ? format(parseISO(deliveryDate), "d 'de' MMMM", { locale: es }) : '—'}
-        </p>
-      </div>
-
-      {msg && (
-        <div className={`rounded-2xl px-4 py-3 text-sm font-semibold border ${msg.type === 'success' ? 'bg-emerald-500/20 border-emerald-400/30 text-emerald-300' : 'bg-red-500/20 border-red-400/30 text-red-300'}`}>
-          {msg.text}
+    <div className="max-w-lg mx-auto space-y-3 pb-24">
+      {/* Modal */}
+      {modal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
+          onClick={() => modal.type !== 'confirm' && setModal(null)}>
+          <div className="w-full max-w-sm rounded-3xl border bg-purple-900 p-6 space-y-4 text-center"
+            onClick={e => e.stopPropagation()}
+            style={{ borderColor: modal.type === 'success' ? 'rgba(52,211,153,0.3)' : modal.type === 'error' ? 'rgba(248,113,113,0.3)' : 'rgba(245,197,24,0.3)' }}>
+            <p className="text-4xl">{modal.type === 'success' ? '✅' : modal.type === 'error' ? '❌' : '📤'}</p>
+            <p className="text-white font-bold text-sm">{modal.text}</p>
+            {modal.type === 'confirm' ? (
+              <div className="flex gap-3">
+                <button onClick={() => setModal(null)} className="flex-1 py-2.5 rounded-2xl text-sm font-bold bg-white/10 text-white/60">Cancelar</button>
+                <button onClick={modal.onConfirm} className="flex-1 py-2.5 rounded-2xl text-sm font-bold bg-yellow-400 text-purple-900">Enviar</button>
+              </div>
+            ) : (
+              <button onClick={() => setModal(null)} className="w-full py-2.5 rounded-2xl text-sm font-bold bg-white/10 text-white">Cerrar</button>
+            )}
+          </div>
         </div>
       )}
+
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="page-title text-xl">Pedido Cocina</h1>
+          <p className="text-muted text-xs">
+            {worker?.full_name} · Entrega {deliveryDate ? format(parseISO(deliveryDate), "d 'de' MMMM", { locale: es }) : '—'}
+          </p>
+        </div>
+        {order && (
+          <span className={`text-xs px-3 py-1 rounded-full font-bold ${order.status === 'delivered' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-yellow-400/20 text-yellow-300'}`}>
+            {order.status === 'delivered' ? '✓ Entregado' : '⏳ Pendiente'}
+          </span>
+        )}
+      </div>
 
       {/* Tabs */}
       <div className="flex gap-2 bg-white/5 rounded-2xl p-1">
         {(['order', 'delivery'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
-            className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${tab === t ? 'bg-yellow-400 text-purple-900' : 'text-white/50 hover:text-white'}`}>
-            {t === 'order' ? '📋 Hacer pedido' : '📦 Confirmar entrega'}
+            className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${tab === t ? 'bg-yellow-400 text-purple-900' : 'text-white/50'}`}>
+            {t === 'order' ? '📋 Pedido' : '📦 Entrega'}
           </button>
         ))}
       </div>
 
-      {/* TAB: Hacer pedido */}
+      {/* ── TAB PEDIDO ── */}
       {tab === 'order' && (
-        <div className="space-y-2">
-          {order && order.status !== 'cancelled' ? (
-            <div className="card text-center py-6">
-              <p className="text-3xl mb-2">✅</p>
-              <p className="text-white font-bold">Pedido ya enviado</p>
-              <p className="text-white/50 text-sm mt-1">El pedido para el {format(parseISO(deliveryDate), "d 'de' MMMM", { locale: es })} ya fue enviado.</p>
-              <button onClick={() => setTab('delivery')} className="btn-primary mt-4">Ver entrega</button>
+        <>
+          {order ? (
+            <div className="card text-center py-8 space-y-3">
+              <p className="text-4xl">✅</p>
+              <p className="text-white font-bold">Pedido enviado</p>
+              <p className="text-white/50 text-sm">{itemsWithQty.length} productos para el {format(parseISO(deliveryDate), "d 'de' MMMM", { locale: es })}</p>
+              <button onClick={() => setTab('delivery')} className="btn-primary">Ir a confirmar entrega →</button>
             </div>
           ) : (
             <>
-              <div className="card">
-                <div className="grid grid-cols-3 gap-2 pb-2 border-b border-white/10 text-white/40 text-xs font-semibold">
-                  <span className="col-span-2">Producto</span>
-                  <span className="text-center">Cantidad</span>
+              {/* Buscador */}
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 text-sm">🔍</span>
+                <input
+                  type="text" value={search} onChange={e => setSearch(e.target.value)}
+                  placeholder="Buscar producto..."
+                  className="w-full bg-white/10 border border-white/15 rounded-2xl pl-8 pr-4 py-3 text-white text-sm placeholder-white/30 focus:outline-none focus:border-yellow-400/50 transition-all"
+                />
+                {search && (
+                  <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 text-lg">✕</button>
+                )}
+              </div>
+
+              {/* Contador */}
+              {itemsWithQty.length > 0 && (
+                <div className="bg-yellow-400/10 border border-yellow-400/20 rounded-2xl px-4 py-2 flex items-center justify-between">
+                  <span className="text-yellow-300 text-xs font-semibold">{itemsWithQty.length} productos seleccionados</span>
+                  <button onClick={() => setQuantities({})} className="text-yellow-400/60 text-xs underline">Limpiar</button>
                 </div>
-                {products.map(p => (
-                  <div key={p.id} className="grid grid-cols-3 gap-2 items-center py-2 border-b border-white/5">
-                    <span className="col-span-2 text-white text-xs">{p.name}</span>
+              )}
+
+              {/* Lista productos */}
+              <div className="card space-y-0 overflow-hidden p-0">
+                {filteredProducts.map((p, i) => (
+                  <div key={p.id}
+                    className={`flex items-center gap-3 px-4 py-3 ${i < filteredProducts.length - 1 ? 'border-b border-white/5' : ''} ${(quantities[p.id] || 0) > 0 ? 'bg-yellow-400/5' : ''}`}>
+                    <span className="flex-1 text-white text-sm leading-tight">{p.name}</span>
                     <input
-                      type="number" min="0"
+                      ref={el => { qtyRefs.current[i] = el }}
+                      type="number"
+                      inputMode="numeric"
+                      min="0"
                       value={quantities[p.id] || ''}
                       onChange={e => setQuantities(prev => ({ ...prev, [p.id]: parseInt(e.target.value) || 0 }))}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          qtyRefs.current[i + 1]?.focus()
+                        }
+                      }}
                       placeholder="0"
-                      className="bg-white/10 border border-white/15 rounded-lg px-2 py-1.5 text-white text-xs text-center focus:outline-none focus:border-yellow-400/60 transition-all w-full"
+                      className={`w-16 text-center rounded-xl px-2 py-2 text-white text-sm font-bold focus:outline-none transition-all border ${
+                        (quantities[p.id] || 0) > 0
+                          ? 'bg-yellow-400/20 border-yellow-400/40 text-yellow-300'
+                          : 'bg-white/10 border-white/15'
+                      }`}
                     />
                   </div>
                 ))}
+                {filteredProducts.length === 0 && (
+                  <p className="text-white/30 text-sm text-center py-8">No hay productos con ese nombre</p>
+                )}
               </div>
-              <div className="flex items-center justify-between px-2">
-                <p className="text-white/40 text-xs">{totalRequested} unidades en total</p>
-              </div>
-              <button onClick={submitOrder} disabled={saving || totalRequested === 0}
-                className="btn-primary w-full">
-                {saving ? 'Enviando...' : `📤 Enviar pedido (${totalRequested} productos)`}
-              </button>
             </>
           )}
-        </div>
+        </>
       )}
 
-      {/* TAB: Confirmar entrega */}
+      {/* ── TAB ENTREGA ── */}
       {tab === 'delivery' && (
-        <div className="space-y-2">
+        <>
           {!order ? (
-            <div className="card text-center py-6">
+            <div className="card text-center py-8">
               <p className="text-3xl mb-2">📋</p>
               <p className="text-white/50 text-sm">Primero haz el pedido</p>
             </div>
           ) : order.status === 'delivered' ? (
-            <div className="card text-center py-6">
-              <p className="text-3xl mb-2">✅</p>
-              <p className="text-white font-bold">Entrega confirmada</p>
-              <div className="mt-4 text-left space-y-2">
-                {orderedItems.map((item: OrderItem) => (
-                  <div key={item.product_id} className="flex justify-between text-sm">
-                    <span className="text-white/70">{item.product?.name}</span>
-                    <span className="text-white font-semibold">Recibido: {item.qty_delivered ?? 0}</span>
-                  </div>
-                ))}
-              </div>
+            <div className="card space-y-3">
+              <p className="text-white font-bold text-sm">✅ Entrega confirmada</p>
+              {order.items.map((item: OrderItem) => (
+                <div key={item.product_id} className="flex justify-between items-center border-b border-white/5 pb-2">
+                  <span className="text-white/70 text-xs flex-1">{item.product?.name}</span>
+                  <span className="text-white text-xs font-bold ml-2">Recibido: {item.qty_delivered ?? 0}</span>
+                </div>
+              ))}
             </div>
           ) : (
             <>
-              <p className="text-white/50 text-xs px-1">Ingresa la cantidad que llegó de cada producto pedido:</p>
-              <div className="card">
-                <div className="grid grid-cols-3 gap-2 pb-2 border-b border-white/10 text-white/40 text-xs font-semibold">
-                  <span className="col-span-1">Producto</span>
-                  <span className="text-center">Pedido</span>
-                  <span className="text-center">Entregado</span>
-                </div>
-                {orderedItems.map((item: OrderItem) => (
-                  <div key={item.product_id} className="grid grid-cols-3 gap-2 items-center py-2 border-b border-white/5">
-                    <span className="text-white text-xs">{item.product?.name}</span>
-                    <span className="text-white/60 text-xs text-center">—</span>
+              <p className="text-white/50 text-xs px-1">
+                Ingresa la cantidad que llegó de cada producto. Presiona Enter para pasar al siguiente.
+              </p>
+              <div className="card space-y-0 overflow-hidden p-0">
+                {order.items.map((item: OrderItem, i: number) => (
+                  <div key={item.product_id}
+                    className={`flex items-center gap-3 px-4 py-3 ${i < order.items.length - 1 ? 'border-b border-white/5' : ''}`}>
+                    <span className="flex-1 text-white text-sm leading-tight">{item.product?.name}</span>
                     <input
-                      type="number" min="0"
+                      ref={el => { delRefs.current[i] = el }}
+                      type="number"
+                      inputMode="numeric"
+                      min="0"
                       value={deliveries[item.product_id] || ''}
                       onChange={e => setDeliveries(prev => ({ ...prev, [item.product_id]: e.target.value }))}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          delRefs.current[i + 1]?.focus()
+                        }
+                      }}
                       placeholder="0"
-                      className="bg-white/10 border border-white/15 rounded-lg px-2 py-1.5 text-white text-xs text-center focus:outline-none focus:border-yellow-400/60 transition-all w-full"
+                      className={`w-16 text-center rounded-xl px-2 py-2 text-white text-sm font-bold focus:outline-none transition-all border ${
+                        deliveries[item.product_id]
+                          ? 'bg-emerald-500/20 border-emerald-400/30 text-emerald-300'
+                          : 'bg-white/10 border-white/15'
+                      }`}
                     />
                   </div>
                 ))}
               </div>
-              <button onClick={submitDelivery} disabled={saving} className="btn-primary w-full">
-                {saving ? 'Guardando...' : '✅ Confirmar entrega'}
-              </button>
             </>
           )}
+        </>
+      )}
+
+      {/* Botón fijo abajo */}
+      {tab === 'order' && !order && (
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-purple-950 to-transparent">
+          <button onClick={submitOrder} disabled={saving || itemsWithQty.length === 0}
+            className={`btn-primary w-full !py-4 !text-base max-w-lg mx-auto block ${itemsWithQty.length === 0 ? 'opacity-40' : ''}`}>
+            {saving ? 'Enviando...' : `📤 Enviar pedido${itemsWithQty.length > 0 ? ` (${itemsWithQty.length})` : ''}`}
+          </button>
+        </div>
+      )}
+
+      {tab === 'delivery' && order && order.status !== 'delivered' && (
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-purple-950 to-transparent">
+          <button onClick={submitDelivery} disabled={saving}
+            className="btn-primary w-full !py-4 !text-base max-w-lg mx-auto block">
+            {saving ? 'Guardando...' : '✅ Confirmar entrega'}
+          </button>
         </div>
       )}
     </div>
