@@ -34,6 +34,18 @@ body {
   .input-field {
     @apply w-full bg-white/10 border border-white/20 rounded-2xl px-4 py-3 text-white placeholder-white/40 focus:outline-none focus:border-yellow-400/60 transition-all duration-200 text-sm;
   }
+  .input-field option {
+    background-color: #1e0a3c;
+    color: white;
+  }
+  select.input-field {
+    background-color: rgba(255,255,255,0.1);
+    color: white;
+  }
+  select option {
+    background-color: #1e0a3c;
+    color: white;
+  }
   .label {
     @apply text-white/60 text-xs font-semibold uppercase tracking-wider mb-1 block;
   }
