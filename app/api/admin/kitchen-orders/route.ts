@@ -65,8 +65,15 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (body.type === 'price') {
-    const { product_id, new_price } = body
-    await supabase.from('kitchen_products').update({ price: new_price }).eq('id', product_id)
+    const { product_id, new_price, item_id, update_product } = body
+    // Si se pide actualizar el producto base también
+    if (update_product) {
+      await supabase.from('kitchen_products').update({ price: new_price }).eq('id', product_id)
+    }
+    // Guardar precio override en el item específico (no afecta otros pedidos)
+    if (item_id) {
+      await supabase.from('kitchen_order_items').update({ price_override: new_price }).eq('id', item_id)
+    }
     return NextResponse.json({ ok: true })
   }
 

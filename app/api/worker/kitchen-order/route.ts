@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
   // Buscar pedido activo (pending) para la fecha calculada
   const { data: order } = await supabase
     .from('kitchen_orders')
-    .select('*, items:kitchen_order_items(*, product:kitchen_products(*))')
+    .select('*, worker:workers(full_name), items:kitchen_order_items(*, product:kitchen_products(*))')
     .eq('delivery_date', deliveryDate)
     .eq('status', 'pending')
     .maybeSingle()
@@ -40,7 +40,8 @@ export async function GET(req: NextRequest) {
     .eq('is_active', true)
     .order('sort_order')
 
-  return NextResponse.json({ order, products, deliveryDate })
+  const orderWithName = order ? { ...order, worker_name: (order as any).worker?.full_name || '' } : null
+  return NextResponse.json({ order: orderWithName, products, deliveryDate })
 }
 
 export async function POST(req: NextRequest) {

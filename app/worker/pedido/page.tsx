@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 
-type Product = { id: string; name: string; sort_order: number }
+type Product = { id: string; name: string; sort_order: number; supplier: string }
 type OrderItem = { id: string; product_id: string; qty_requested: number; qty_delivered: number | null; observation: string | null; product: Product }
 type Order = { id: string; delivery_date: string; status: string; items: OrderItem[] }
 
@@ -12,6 +12,7 @@ export default function PedidoPage() {
   const [worker, setWorker]             = useState<{ id: string; full_name: string } | null>(null)
   const [products, setProducts]         = useState<Product[]>([])
   const [order, setOrder]               = useState<Order | null>(null)
+  const [orderedBy, setOrderedBy]       = useState<string>('')
   const [deliveryDate, setDeliveryDate] = useState('')
   const [quantities, setQuantities]     = useState<Record<string, number>>({})
   const [deliveries, setDeliveries]     = useState<Record<string, string>>({})
@@ -39,9 +40,11 @@ export default function PedidoPage() {
     setDeliveryDate(json.deliveryDate)
     if (json.order) {
       setOrder(json.order)
+      setOrderedBy(json.order.worker_name || '')
       setTab('delivery')
     } else {
       setOrder(null)
+      setOrderedBy('')
       setTab('order')
     }
     setLoading(false)
@@ -181,7 +184,11 @@ export default function PedidoPage() {
           <h1 className="page-title text-xl">Pedido Cocina</h1>
           <p className="text-muted text-xs">{worker?.full_name} · Entrega {deliveryDate ? format(parseISO(deliveryDate), "d 'de' MMMM", { locale: es }) : '—'}</p>
         </div>
-        {order && <span className="text-xs px-3 py-1 rounded-full font-bold bg-yellow-400/20 text-yellow-300">⏳ Pendiente</span>}
+        {order && (
+          <div className="text-right">
+            <span className="text-xs px-3 py-1 rounded-full font-bold bg-yellow-400/20 text-yellow-300 block">⏳ Pendiente</span>
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
@@ -246,13 +253,14 @@ export default function PedidoPage() {
             <div className="card text-center py-8"><p className="text-3xl mb-2">📋</p><p className="text-white/50 text-sm">Primero haz el pedido</p></div>
           ) : (
             <>
-              <div className="bg-blue-500/10 border border-blue-400/20 rounded-2xl px-4 py-3">
+              <div className="bg-blue-500/10 border border-blue-400/20 rounded-2xl px-4 py-3 space-y-1">
                 <p className="text-blue-300 text-xs font-semibold">📦 Instrucciones</p>
-                <p className="text-white/60 text-xs mt-1">Revisa producto por producto e ingresa exactamente lo que llegó. Si hay diferencia con lo pedido o llegó algo no pedido, escribe la observación.</p>
+                <p className="text-white/60 text-xs">Revisa producto por producto e ingresa exactamente lo que llegó. Si hay diferencia con lo pedido o llegó algo no pedido, escribe la observación.</p>
+                {orderedBy && <p className="text-white/40 text-xs">Pedido realizado por: <span className="text-white/70 font-semibold">{orderedBy}</span></p>}
               </div>
 
               <div className="space-y-2">
-                {products.map((p, i) => {
+                {products.filter(p => p.supplier === 'Brisas').map((p, i) => {
                   const status = getDeliveryStatus(p.id)
                   const delivered = parseFloat(deliveries[p.id] || '0') || 0
                   const requested = orderedQtyMap[p.id]

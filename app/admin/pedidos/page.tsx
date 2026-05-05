@@ -4,7 +4,7 @@ import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns'
 import { es } from 'date-fns/locale'
 
 type Product = { id: string; name: string; price: number; supplier: string; is_active: boolean; sort_order: number }
-type OrderItem = { id: string; product_id: string; qty_requested: number; qty_delivered: number | null; observation: string | null; product: Product }
+type OrderItem = { id: string; product_id: string; qty_requested: number; qty_delivered: number | null; observation: string | null; price_override: number | null; product: Product }
 type Order = { id: string; delivery_date: string; status: string; whatsapp_sent: boolean; worker: { full_name: string }; items: OrderItem[] }
 
 const cop = (v: number) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(v || 0)
@@ -81,7 +81,9 @@ export default function AdminPedidosPage() {
       const item = orders.flatMap(o => o.items).find(i => i.id === itemId)
       if (item) await fetch('/api/admin/kitchen-orders', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'price', product_id: item.product_id, new_price: parseFloat(edit.price) || 0 }),
+        // update_product=true actualiza la tabla de productos (futuros pedidos)
+        // item_id guarda price_override solo en este item (no afecta pedidos anteriores)
+        body: JSON.stringify({ type: 'price', product_id: item.product_id, new_price: parseFloat(edit.price) || 0, item_id: itemId, update_product: true }),
       })
     }
     const newE = { ...editingItem }; delete newE[itemId]
@@ -166,7 +168,9 @@ export default function AdminPedidosPage() {
   function orderTotal(items: OrderItem[]) {
     return items.reduce((s, i) => {
       const qty   = i.qty_delivered ?? i.qty_requested
-      const price = editingItem[i.id]?.price !== undefined ? parseFloat(editingItem[i.id].price || '0') || 0 : (i.product?.price || 0)
+      const price = editingItem[i.id]?.price !== undefined
+        ? parseFloat(editingItem[i.id].price || '0') || 0
+        : (i.price_override ?? i.product?.price ?? 0)
       return s + qty * price
     }, 0)
   }
@@ -258,7 +262,7 @@ export default function AdminPedidosPage() {
                       )}
                     </div>
                     <p className="text-muted text-xs mt-0.5">
-                      {order.worker?.full_name} ·{' '}
+                      👤 {order.worker?.full_name} ·{' '}
                       <span className={order.status === 'delivered' ? 'text-emerald-400' : 'text-yellow-400'}>
                         {order.status === 'delivered' ? '✓ Entregado' : '⏳ Pendiente'}
                       </span>
@@ -321,7 +325,7 @@ export default function AdminPedidosPage() {
                                       placeholder="—"
                                       className="w-full text-center bg-white/10 border border-white/15 rounded-lg px-1 py-1 text-emerald-300 text-xs focus:outline-none" />
                                     <input type="number" min="0"
-                                      value={edit.price ?? item.product?.price ?? ''}
+                                      value={edit.price ?? item.price_override ?? item.product?.price ?? ''}
                                       onChange={e => setEditingItem(prev => ({ ...prev, [item.id]: { ...prev[item.id], price: e.target.value } }))}
                                       className="w-full text-right bg-white/10 border border-white/15 rounded-lg px-1 py-1 text-white text-xs focus:outline-none" />
                                     <span className="text-white text-xs font-semibold text-right">{cop(qty * price)}</span>
