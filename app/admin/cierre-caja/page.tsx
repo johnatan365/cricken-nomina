@@ -28,6 +28,9 @@ type CashRegister = {
   difference: number
   difference_note: string | null
   supplier_payments: {description: string; amount: string}[]
+  puve_transfers: {amount: string}[]
+  didi_orders: {order_id: string; cash: string; transfers: {amount: string}[]}[]
+  whatsapp_orders: {amount: string}[]
   submitted_at: string
 }
 
@@ -436,7 +439,7 @@ export default function AdminCierreCajaPage() {
 
                       {/* Transferencias — modal */}
                       <div className="bg-white/5 rounded-xl px-3 py-2 cursor-pointer hover:bg-white/10 transition-all"
-                        onClick={e => { e.stopPropagation(); setDetailModal({ title: 'Transferencias Puve', items: (r.puve_transfers || []).map((t: {amount: string}, i: number) => ({ label: `Transferencia ${i+1}`, value: parseFloat(t.amount) || 0 })), total: r.puve_transfer }) }}>
+                        onClick={e => { e.stopPropagation(); setDetailModal({ title: 'Transferencias Puve', items: ((r as any).puve_transfers || []).map((t: {amount: string}, i: number) => ({ label: `Transferencia ${i+1}`, value: parseFloat(t.amount) || 0 })), total: r.puve_transfer }) }}>
                         <p className="text-white/40 text-xs">Transferencias</p>
                         <p className="text-white font-bold text-sm">{cop(r.puve_transfer)}</p>
                         <p className="text-blue-400 text-xs mt-0.5">Ver detalle →</p>
@@ -444,7 +447,7 @@ export default function AdminCierreCajaPage() {
 
                       {/* Didi — modal */}
                       <div className="bg-white/5 rounded-xl px-3 py-2 cursor-pointer hover:bg-white/10 transition-all"
-                        onClick={e => { e.stopPropagation(); setDetailModal({ title: 'Pedidos Didi', items: (r.didi_orders || []).map((o: {order_id: string; cash: string; transfers: {amount: string}[]}, i: number) => ({ label: `Pedido #${o.order_id || i+1}`, value: (parseFloat(o.cash) || 0) + (o.transfers || []).reduce((s: number, t: {amount: string}) => s + (parseFloat(t.amount) || 0), 0) })), total: r.didi_cash_total + r.didi_transfer_total }) }}>
+                        onClick={e => { e.stopPropagation(); setDetailModal({ title: 'Pedidos Didi', items: ((r as any).didi_orders || []).map((o: {order_id: string; cash: string; transfers: {amount: string}[]}, i: number) => ({ label: `Pedido #${o.order_id || i+1}`, value: (parseFloat(o.cash) || 0) + (o.transfers || []).reduce((s: number, t: {amount: string}) => s + (parseFloat(t.amount) || 0), 0) })), total: r.didi_cash_total + r.didi_transfer_total }) }}>
                         <p className="text-white/40 text-xs">Didi efectivo + transf.</p>
                         <p className="text-white font-bold text-sm">{cop(r.didi_cash_total + r.didi_transfer_total)}</p>
                         <p className="text-blue-400 text-xs mt-0.5">Ver detalle →</p>
@@ -452,7 +455,7 @@ export default function AdminCierreCajaPage() {
 
                       {/* WhatsApp — modal */}
                       <div className="bg-white/5 rounded-xl px-3 py-2 cursor-pointer hover:bg-white/10 transition-all"
-                        onClick={e => { e.stopPropagation(); setDetailModal({ title: 'Pedidos WhatsApp', items: (r.whatsapp_orders || []).map((o: {amount: string}, i: number) => ({ label: `Pedido ${i+1}`, value: parseFloat(o.amount) || 0 })), total: r.whatsapp_total }) }}>
+                        onClick={e => { e.stopPropagation(); setDetailModal({ title: 'Pedidos WhatsApp', items: ((r as any).whatsapp_orders || []).map((o: {amount: string}, i: number) => ({ label: `Pedido ${i+1}`, value: parseFloat(o.amount) || 0 })), total: r.whatsapp_total }) }}>
                         <p className="text-white/40 text-xs">WhatsApp</p>
                         <p className="text-white font-bold text-sm">{cop(r.whatsapp_total)}</p>
                         <p className="text-blue-400 text-xs mt-0.5">Ver detalle →</p>
@@ -460,7 +463,7 @@ export default function AdminCierreCajaPage() {
 
                       {/* Proveedores — modal */}
                       <div className="bg-white/5 rounded-xl px-3 py-2 cursor-pointer hover:bg-white/10 transition-all"
-                        onClick={e => { e.stopPropagation(); setDetailModal({ title: 'Pagos a proveedores', items: (r.supplier_payments || []).map((s: {description: string; amount: string}) => ({ label: s.description, value: parseFloat(s.amount) || 0 })), total: r.supplier_total, danger: true }) }}>
+                        onClick={e => { e.stopPropagation(); setDetailModal({ title: 'Pagos a proveedores', items: ((r as any).supplier_payments || []).map((s: {description: string; amount: string}) => ({ label: s.description, value: parseFloat(s.amount) || 0 })), total: r.supplier_total, danger: true }) }}>
                         <p className="text-white/40 text-xs">Proveedores (−)</p>
                         <p className="text-red-300 font-bold text-sm">{cop(r.supplier_total)}</p>
                         <p className="text-blue-400 text-xs mt-0.5">Ver detalle →</p>
@@ -468,10 +471,10 @@ export default function AdminCierreCajaPage() {
                     </div>
 
                     {/* Detalle proveedores */}
-                    {r.supplier_payments && Array.isArray(r.supplier_payments) && r.supplier_payments.length > 0 && (
+                    {(r as any).supplier_payments && Array.isArray((r as any).supplier_payments) && r.supplier_payments.length > 0 && (
                       <div className="space-y-1">
                         <p className="text-white/40 text-xs font-semibold">Pagos a proveedores</p>
-                        {r.supplier_payments.map((s: {description: string; amount: string}, i: number) => (
+                        {((r as any).supplier_payments || []).map((s: {description: string; amount: string}, i: number) => (
                           <div key={i} className="flex justify-between items-center bg-white/5 rounded-xl px-3 py-2">
                             <span className="text-white/70 text-xs">{s.description}</span>
                             <span className="text-red-300 text-xs font-bold">−{cop(parseFloat(s.amount) || 0)}</span>
