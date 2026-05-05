@@ -74,7 +74,9 @@ export default function PedidoPage() {
         const json = await res.json()
         setSaving(false)
         if (!res.ok) { showModal('error', json.error || 'Error al enviar'); return }
-        showModal('success', '✅ Pedido enviado correctamente')
+        // Abrir WhatsApp con el pedido listo para enviar
+        if (json.waLink) window.open(json.waLink, '_blank')
+        showModal('success', '✅ Pedido listo — confirma el envío en WhatsApp')
         setQuantities({}); loadData()
       }}
     )
