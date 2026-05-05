@@ -183,27 +183,6 @@ export default function TrabajadoresPage() {
         </div>
       )}
 
-      {/* Tarifa dominical global */}
-      <div className="card flex items-center justify-between gap-4">
-        <div>
-          <p className="text-white font-semibold text-sm">🌅 Tarifa dominical</p>
-          <p className="text-white/40 text-xs mt-0.5">Se aplica a todos los trabajadores los domingos</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <input
-            type="number" min="0" step="500"
-            value={sundayRate}
-            onChange={e => setSundayRate(e.target.value)}
-            placeholder="$ por hora"
-            className="input-field w-40"
-          />
-          <button onClick={saveSundayRate} disabled={savingSundayRate}
-            className="btn-primary !py-2 !px-4 !text-xs whitespace-nowrap">
-            {savingSundayRate ? 'Guardando...' : 'Guardar'}
-          </button>
-        </div>
-      </div>
-
       {loading ? <div className="text-center py-10 text-white/40">Cargando...</div> : (
         <div className="grid md:grid-cols-2 gap-4">
           <div className="space-y-3">
