@@ -137,7 +137,10 @@ export default function CierreCajaPage() {
   const puveDiff = puveReported > 0 ? puveReported - (puveTransTotal + puveEfectivoCalculado) : null
   const puveOk   = puveDiff === null || Math.abs(puveDiff) < 1
 
-  const nextBase      = cashToOwner !== '' ? cashCounted - n(cashToOwner) : null
+  // cashToOwner ahora es la BASE que deja en caja
+  // El sobre = efectivo contado - base que deja
+  const nextBase       = cashToOwner !== '' ? n(cashToOwner) : null
+  const cashToEnvelope = cashToOwner !== '' ? cashCounted - n(cashToOwner) : null
   // needsNote solo cuando la diferencia requiere aprobación
   const needsNote = cashCounted > 0 && (
     (difference < 0 && Math.abs(difference) >= 2000) ||
@@ -282,7 +285,7 @@ export default function CierreCajaPage() {
     }
     if (cashCounted === 0)  { showMsg('error', 'Registra el conteo de billetes'); return }
     if (!puveTotalReported) { showMsg('error', 'Ingresa el Total ventas Puve'); return }
-    if (cashToOwner === '') { showMsg('error', 'Ingresa cuánto vas a dejar en el sobre'); return }
+    if (cashToOwner === '') { showMsg('error', 'Ingresa la base que dejas en caja'); return }
 
     // Requiere aprobación si: faltante >= $2.000 o sobrante >= $10.000
     const hasDiff = (difference < 0 && Math.abs(difference) >= 2000) ||
@@ -726,9 +729,9 @@ export default function CierreCajaPage() {
                   </div>
                 )}
 
-                {/* Entregar en el sobre */}
+                {/* Base que deja en caja */}
                 <div>
-                  <label className="text-white/40 text-xs font-semibold block mb-1">Entregar en el sobre</label>
+                  <label className="text-white/40 text-xs font-semibold block mb-1">Base que deja en caja</label>
                   <input type="number" min="0" value={cashToOwner} onChange={e => setCashToOwner(e.target.value)}
                     placeholder="$ valor"
                     className="w-full bg-white/10 border border-white/15 rounded-lg px-2 py-1.5 text-white text-sm font-bold focus:outline-none focus:border-yellow-400/60 transition-all" />
