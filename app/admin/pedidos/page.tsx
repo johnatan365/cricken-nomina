@@ -165,9 +165,11 @@ export default function AdminPedidosPage() {
     return groups
   }
 
-  function orderTotal(items: OrderItem[]) {
+  function orderTotal(items: OrderItem[], status: string) {
+    // Solo totalizar si la entrega fue confirmada
+    if (status !== 'delivered') return null
     return items.reduce((s, i) => {
-      const qty   = i.qty_delivered ?? i.qty_requested
+      const qty   = i.qty_delivered ?? 0
       const price = editingItem[i.id]?.price !== undefined
         ? parseFloat(editingItem[i.id].price || '0') || 0
         : (i.price_override ?? i.product?.price ?? 0)
@@ -244,7 +246,7 @@ export default function AdminPedidosPage() {
           : orders.length === 0 ? <div className="card text-center py-10"><p className="text-3xl mb-2">📋</p><p className="text-white/50">No hay pedidos</p></div>
           : orders.map(order => {
             const groups = groupBySupplier(order.items || [])
-            const total  = orderTotal(order.items || [])
+            const total  = orderTotal(order.items || [], order.status)
             return (
               <div key={order.id} className="card">
                 <div className="flex items-center justify-between cursor-pointer"
@@ -271,7 +273,7 @@ export default function AdminPedidosPage() {
                   <div className="flex items-center gap-3">
                     <div className="text-right">
                       <p className="text-white/40 text-xs">Total</p>
-                      <p className="text-yellow-400 font-bold">{cop(total)}</p>
+                      <p className="text-yellow-400 font-bold">{total !== null ? cop(total) : '—'}</p>
                     </div>
                     <button onClick={e => { e.stopPropagation(); setAddingProduct({ orderId: order.id, productId: '', qty: '1' }) }}
                       className="text-emerald-400/60 hover:text-emerald-400 text-sm px-1 transition-all" title="Agregar producto">➕</button>
@@ -284,16 +286,16 @@ export default function AdminPedidosPage() {
                 {expanded === order.id && (
                   <div className="mt-4 pt-4 border-t border-white/10 space-y-4">
                     {Object.entries(groups).map(([supplier, items]) => {
-                      const supplierTotal = items.reduce((s, i) => {
-                        const qty   = i.qty_delivered ?? i.qty_requested
-                        const price = editingItem[i.id]?.price !== undefined ? parseFloat(editingItem[i.id].price || '0') || 0 : (i.product?.price || 0)
+                      const supplierTotal = order.status !== 'delivered' ? null : items.reduce((s, i) => {
+                        const qty   = i.qty_delivered ?? 0
+                        const price = editingItem[i.id]?.price !== undefined ? parseFloat(editingItem[i.id].price || '0') || 0 : (i.price_override ?? i.product?.price ?? 0)
                         return s + qty * price
                       }, 0)
                       return (
                         <div key={supplier}>
                           <div className="flex items-center justify-between mb-2">
                             <p className="text-yellow-400 text-xs font-bold uppercase tracking-wider">{supplier}</p>
-                            <p className="text-yellow-400 text-xs font-bold">{cop(supplierTotal)}</p>
+                            <p className="text-yellow-400 text-xs font-bold">{supplierTotal !== null ? cop(supplierTotal) : '—'}</p>
                           </div>
 
                           <div className="grid grid-cols-7 gap-1 text-xs text-white/30 font-semibold px-2 mb-1">
@@ -328,7 +330,9 @@ export default function AdminPedidosPage() {
                                       value={edit.price ?? item.price_override ?? item.product?.price ?? ''}
                                       onChange={e => setEditingItem(prev => ({ ...prev, [item.id]: { ...prev[item.id], price: e.target.value } }))}
                                       className="w-full text-right bg-white/10 border border-white/15 rounded-lg px-1 py-1 text-white text-xs focus:outline-none" />
-                                    <span className="text-white text-xs font-semibold text-right">{cop(qty * price)}</span>
+                                    <span className="text-white text-xs font-semibold text-right">
+                                    {order.status === 'delivered' ? cop((i.qty_delivered ?? 0) * price) : '—'}
+                                  </span>
                                     <div className="flex justify-end gap-1">
                                       {isDirty && <button onClick={() => saveItemEdit(item.id)} className="text-yellow-400 text-xs">💾</button>}
                                       <button onClick={() => deleteItem(item.id)} className="text-red-400/50 hover:text-red-400 text-xs">✕</button>
@@ -351,7 +355,9 @@ export default function AdminPedidosPage() {
 
                     <div className="flex justify-between font-bold border-t border-white/15 pt-3">
                       <span className="text-white">Total pedido</span>
-                      <span className="text-yellow-400 text-lg">{cop(total)}</span>
+                      <span className={`text-lg ${total !== null ? 'text-yellow-400' : 'text-white/30'}`}>
+                        {total !== null ? cop(total) : 'Pendiente de entrega'}
+                      </span>
                     </div>
                   </div>
                 )}
