@@ -13,7 +13,7 @@ type WorkerSchedule = {
   is_active: boolean
 }
 
-type WorkerWithRates = Worker & { rates: HourlyRate[]; schedules: WorkerSchedule[]; has_cash_register: boolean; sunday_rate: number | null; has_kitchen_access: boolean }
+type WorkerWithRates = Worker & { rates: HourlyRate[]; schedules: WorkerSchedule[]; has_cash_register: boolean; sunday_rate: number | null; has_kitchen_access: boolean; has_cash_order_access: boolean }
 
 export default function TrabajadoresPage() {
   const [workers, setWorkers] = useState<WorkerWithRates[]>([])
@@ -53,6 +53,7 @@ export default function TrabajadoresPage() {
       has_cash_register: (w as WorkerWithRates).has_cash_register ?? false,
       sunday_rate: (w as WorkerWithRates).sunday_rate ?? null,
       has_kitchen_access: (w as WorkerWithRates).has_kitchen_access ?? false,
+      has_cash_order_access: (w as WorkerWithRates).has_cash_order_access ?? false,
       rates: ratesData.filter((r) => r.worker_id === w.id).sort((a, b) => a.start_time.localeCompare(b.start_time)),
       schedules: [],
     }))
@@ -300,6 +301,30 @@ export default function TrabajadoresPage() {
                 <button onClick={() => toggleKitchen(selected)}
                   className={`relative w-12 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${selected.has_kitchen_access ? 'bg-yellow-400' : 'bg-white/20'}`}>
                   <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all duration-200 ${selected.has_kitchen_access ? 'left-7' : 'left-1'}`} />
+                </button>
+              </div>
+
+              {/* Toggle pedido caja */}
+              <div className="flex items-center justify-between px-4 py-3 bg-white/5 rounded-2xl border border-white/10">
+                <div>
+                  <p className="text-white text-sm font-semibold">🗂 Pedido Caja</p>
+                  <p className="text-white/40 text-xs mt-0.5">
+                    {selected.has_cash_order_access ? 'Puede hacer pedidos de caja' : 'Sin acceso a pedidos de caja'}
+                  </p>
+                </div>
+                <button onClick={async () => {
+                  const newVal = !selected.has_cash_order_access
+                  await fetch('/api/admin/workers', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: selected.id, has_cash_order_access: newVal }),
+                  })
+                  setWorkers(prev => prev.map(w => w.id === selected.id ? { ...w, has_cash_order_access: newVal } : w))
+                  setSelected((prev: WorkerWithRates) => prev ? { ...prev, has_cash_order_access: newVal } : prev)
+                  showStatus('success', newVal ? 'Acceso a pedido caja activado' : 'Acceso a pedido caja desactivado')
+                }}
+                  className={`relative w-12 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${selected.has_cash_order_access ? 'bg-yellow-400' : 'bg-white/20'}`}>
+                  <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all duration-200 ${selected.has_cash_order_access ? 'left-7' : 'left-1'}`} />
                 </button>
               </div>
 

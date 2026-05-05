@@ -13,7 +13,8 @@ export default function AdminPedidosPage() {
   const [orders, setOrders]       = useState<Order[]>([])
   const [products, setProducts]   = useState<Product[]>([])
   const [loading, setLoading]     = useState(true)
-  const [activeTab, setActiveTab] = useState<'orders'|'products'>('orders')
+  const [mainTab, setMainTab]         = useState<'kitchen'|'cash'>('kitchen')
+  const [activeTab, setActiveTab]     = useState<'orders'|'products'>('orders')
   const [expanded, setExpanded]   = useState<string | null>(null)
   const [msg, setMsg]             = useState<{ type: 'success'|'error'; text: string } | null>(null)
   const [dateFrom, setDateFrom]   = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'))
@@ -34,19 +35,19 @@ export default function AdminPedidosPage() {
 
   const loadOrders = useCallback(async () => {
     setLoading(true)
-    const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo })
+    const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo, order_type: mainTab })
     if (supplierFilter !== 'all') params.set('supplier', supplierFilter)
     const res  = await fetch('/api/admin/kitchen-orders?' + params)
     const json = await res.json()
     setOrders(json.orders || [])
     setLoading(false)
-  }, [dateFrom, dateTo, supplierFilter])
+  }, [dateFrom, dateTo, supplierFilter, mainTab])
 
   const loadProducts = useCallback(async () => {
-    const res  = await fetch('/api/admin/kitchen-products')
+    const res  = await fetch('/api/admin/kitchen-products?order_type=' + mainTab)
     const json = await res.json()
     setProducts(json.products || [])
-  }, [])
+  }, [mainTab])
 
   useEffect(() => { loadOrders() }, [loadOrders])
   useEffect(() => { loadProducts() }, [loadProducts])
@@ -141,7 +142,7 @@ export default function AdminPedidosPage() {
     } else {
       const res = await fetch('/api/admin/kitchen-products', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newProduct.name, price: parseFloat(newProduct.price) || 0, supplier: newProduct.supplier }),
+        body: JSON.stringify({ name: newProduct.name, price: parseFloat(newProduct.price) || 0, supplier: newProduct.supplier, order_type: mainTab }),
       })
       if (res.ok) { showMsg('success', 'Producto agregado'); setNewProduct({ name: '', price: '', supplier: 'Brisas' }) }
       else showMsg('error', 'Error al agregar')
@@ -220,10 +221,21 @@ export default function AdminPedidosPage() {
         </div>
       )}
 
+      {/* Tabs principales Cocina / Caja */}
+      <div className="flex gap-2 bg-white/5 rounded-2xl p-1">
+        {([['kitchen', '🍳 Cocina'], ['cash', '🗂 Caja']] as const).map(([key, label]) => (
+          <button key={key} onClick={() => { setMainTab(key); setActiveTab('orders') }}
+            className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${mainTab === key ? 'bg-yellow-400 text-purple-900' : 'text-white/50'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Sub-tabs Pedidos / Productos */}
       <div className="flex gap-2 bg-white/5 rounded-2xl p-1">
         {(['orders', 'products'] as const).map(t => (
           <button key={t} onClick={() => setActiveTab(t)}
-            className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === t ? 'bg-yellow-400 text-purple-900' : 'text-white/50'}`}>
+            className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === t ? 'bg-purple-500/40 text-white' : 'text-white/50'}`}>
             {t === 'orders' ? '📦 Pedidos' : '🛒 Productos'}
           </button>
         ))}

@@ -45,7 +45,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const { worker_id, items, delivery_date } = await req.json()
+  const body_data = await req.json()
+  const { worker_id, items, delivery_date } = body_data
   const supabase = createAdminClient()
 
   // Solo bloquear si hay un pedido PENDING para esa fecha
@@ -54,13 +55,15 @@ export async function POST(req: NextRequest) {
     .select('id')
     .eq('delivery_date', delivery_date)
     .eq('status', 'pending')
+    .eq('order_type', body_data.order_type || 'kitchen')
     .maybeSingle()
 
   if (existing) return NextResponse.json({ error: 'Ya existe un pedido pendiente para ese día' }, { status: 409 })
 
+  const orderType = body_data.order_type || 'kitchen'
   const { data: order, error } = await supabase
     .from('kitchen_orders')
-    .insert({ worker_id, delivery_date, status: 'pending' })
+    .insert({ worker_id, delivery_date, status: 'pending', order_type: orderType })
     .select().single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })

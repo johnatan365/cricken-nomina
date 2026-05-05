@@ -10,9 +10,12 @@ export async function GET(req: NextRequest) {
   const supplier  = searchParams.get('supplier')
   const supabase  = createAdminClient()
 
+  const order_type = searchParams.get('order_type') || 'kitchen'
+
   let q = supabase
     .from('kitchen_orders')
     .select('*, worker:workers(full_name), items:kitchen_order_items(*, product:kitchen_products(*))')
+    .eq('order_type', order_type)
     .order('delivery_date', { ascending: false })
 
   if (date_from) q = q.gte('delivery_date', date_from)

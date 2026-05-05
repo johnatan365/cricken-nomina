@@ -3,9 +3,11 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url)
+  const order_type = searchParams.get('order_type') || 'kitchen'
   const supabase = createAdminClient()
-  const { data, error } = await supabase.from('kitchen_products').select('*').eq('is_active', true).order('sort_order')
+  const { data, error } = await supabase.from('kitchen_products').select('*').eq('is_active', true).eq('order_type', order_type).order('sort_order')
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ products: data })
 }
@@ -23,7 +25,7 @@ export async function POST(req: NextRequest) {
   }
 
   const { data, error } = await supabase.from('kitchen_products')
-    .insert({ name: body.name, price: body.price || 0, supplier: body.supplier || 'Brisas', sort_order: 999 })
+    .insert({ name: body.name, price: body.price || 0, supplier: body.supplier || 'Brisas', sort_order: 999, order_type: body.order_type || 'kitchen' })
     .select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ product: data })
