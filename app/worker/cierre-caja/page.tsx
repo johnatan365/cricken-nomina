@@ -331,7 +331,7 @@ export default function CierreCajaPage() {
       cancelled_orders:    [],
       supplier_payments:   supplierPayments,
       cash_counted:        cashCounted,
-      cash_to_owner:       n(cashToOwner),
+      cash_to_owner:       cashToEnvelope ?? 0,  // sobre = efectivo - base
       difference_note:     differenceNote.trim() || null,
       bill_counts:         billCounts,
       puve_transfers:      puveTransfers,
