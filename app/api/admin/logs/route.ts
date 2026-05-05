@@ -1,13 +1,31 @@
 import { createAdminClient } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 
+// Festivos Colombia (se actualiza anualmente)
+const FESTIVOS_CO = new Set([
+  '2026-01-01','2026-01-12','2026-03-23','2026-04-02','2026-04-03',
+  '2026-05-01','2026-05-18','2026-06-08','2026-06-15','2026-07-20',
+  '2026-08-07','2026-08-17','2026-10-12','2026-11-02','2026-11-16',
+  '2026-12-08','2026-12-25',
+])
+
+function isSundayOrHoliday(date: Date, bogotaOffsetMs: number): boolean {
+  const bogota = new Date(date.getTime() - bogotaOffsetMs)
+  if (bogota.getUTCDay() === 0) return true  // domingo
+  const yyyy = bogota.getUTCFullYear()
+  const mm   = String(bogota.getUTCMonth() + 1).padStart(2, '0')
+  const dd   = String(bogota.getUTCDate()).padStart(2, '0')
+  return FESTIVOS_CO.has(`${yyyy}-${mm}-${dd}`)
+}
+
 function calculateEarnings(
   clockIn: Date,
   clockOut: Date,
-  rates: Array<{ start_time: string; end_time: string; rate_per_hour: number }>
+  rates: Array<{ start_time: string; end_time: string; rate_per_hour: number }>,
+  sundayRate: number | null = null
 ): { hours: number; amount: number } {
   const totalHours = (clockOut.getTime() - clockIn.getTime()) / 3600000
-  if (rates.length === 0) return { hours: Math.round(totalHours * 100) / 100, amount: 0 }
+  if (rates.length === 0 && !sundayRate) return { hours: Math.round(totalHours * 100) / 100, amount: 0 }
 
   const bogotaOffsetMs = 5 * 60 * 60000
 
@@ -25,6 +43,18 @@ function calculateEarnings(
 
   for (let d = 0; d <= daysDiff; d++) {
     const dayStartUTC = new Date(clockInDayStart.getTime() + d * msPerDay)
+
+    // Verificar si este día es domingo o festivo en Bogotá
+    if (sundayRate && isSundayOrHoliday(dayStartUTC, bogotaOffsetMs)) {
+      const dayEnd = new Date(dayStartUTC.getTime() + msPerDay)
+      const overlapStart = Math.max(clockIn.getTime(), dayStartUTC.getTime())
+      const overlapEnd = Math.min(clockOut.getTime(), dayEnd.getTime())
+      if (overlapEnd > overlapStart) {
+        amount += ((overlapEnd - overlapStart) / 3600000) * sundayRate
+      }
+      continue
+    }
+
     for (const rate of rates) {
       const [startH, startM] = rate.start_time.split(':').map(Number)
       const [endH, endM] = rate.end_time.split(':').map(Number)
@@ -121,8 +151,13 @@ export async function POST(req: NextRequest) {
       : (rates || [])
 
     // Solo calcular earnings si hay clock_out
+    // Obtener tarifa dominical del trabajador
+    const { data: workerData } = await supabase
+      .from('workers').select('sunday_rate').eq('id', body.worker_id).single()
+    const sundayRate = workerData?.sunday_rate || null
+
     const { hours, amount } = clockOut
-      ? calculateEarnings(clockIn, clockOut, ratesToUse)
+      ? calculateEarnings(clockIn, clockOut, ratesToUse, sundayRate)
       : { hours: 0, amount: 0 }
 
     const payload = {
@@ -170,7 +205,10 @@ export async function PUT(req: NextRequest) {
     
     for (const log of logs) {
       const rates = (allRates || []).filter((r: { worker_id: string }) => r.worker_id === log.worker_id)
-      const { hours, amount } = calculateEarnings(new Date(log.clock_in), new Date(log.clock_out), rates)
+      const { data: wData } = await supabase
+        .from('workers').select('sunday_rate').eq('id', log.worker_id).single()
+      const sunRate = wData?.sunday_rate || null
+      const { hours, amount } = calculateEarnings(new Date(log.clock_in), new Date(log.clock_out), rates, sunRate)
       // Save rate_snapshot so edit modal can load original rates
       await supabase.from('time_logs').update({ 
         hours_worked: hours, 

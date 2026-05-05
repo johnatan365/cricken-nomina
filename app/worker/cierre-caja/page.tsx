@@ -144,22 +144,12 @@ export default function CierreCajaPage() {
     (difference > 0 && difference >= 10000)
   )
 
-  // Cargar borrador — solo si tiene datos reales
+  // Cargar borrador
   useEffect(() => {
     const d = loadDraft()
     if (!d) return
-    // Verificar que hay datos reales (no solo valores vacíos/cero)
-    const hasReal = (
-      d.billCounts?.some((b: {quantity: string}) => b.quantity && b.quantity !== '0' && b.quantity !== '') ||
-      d.puveTransfers?.some((t: {amount: string}) => t.amount && t.amount !== '') ||
-      d.didiOrders?.length > 0 ||
-      d.whatsappOrders?.length > 0 ||
-      d.supplierPayments?.length > 0 ||
-      (d.puveTotalReported && d.puveTotalReported !== '')
-    )
-    if (!hasReal) { clearDraft(); return }
     if (d.shift)              setShift(d.shift)
-    // openingFund NO se restaura del borrador — siempre viene del servidor
+    if (d.openingFund)        setOpeningFund(d.openingFund)
     if (d.puveTotalReported)  setPuveTotalReported(d.puveTotalReported)
     if (d.billCounts)         setBillCounts(d.billCounts)
     if (d.puveTransfers)      setPuveTransfers(d.puveTransfers)
@@ -173,7 +163,7 @@ export default function CierreCajaPage() {
 
   // Autosave
   useEffect(() => {
-    saveDraft({ shift, puveTotalReported, billCounts, puveTransfers, didiOrders, whatsappOrders, supplierPayments, cashToOwner, differenceNote })
+    saveDraft({ shift, openingFund, puveTotalReported, billCounts, puveTransfers, didiOrders, whatsappOrders, supplierPayments, cashToOwner, differenceNote })
   }, [shift, openingFund, puveTotalReported, billCounts, puveTransfers, didiOrders, whatsappOrders, supplierPayments, cashToOwner, differenceNote])
 
   const loadData = useCallback(async () => {
@@ -209,12 +199,11 @@ export default function CierreCajaPage() {
       setPendingDraft(null)
       setHasPendingDiff(false)
     }
-    // Base SIEMPRE del servidor — tiene prioridad absoluta sobre el borrador
-    if (json.suggestedBase > 0) {
+    if (json.suggestedBase > 0 && !loadDraft()?.openingFund) {
       setSuggestedBase(json.suggestedBase)
       setOpeningFund(String(json.suggestedBase))
-      setBaseIsLocked(true)   // siempre bloqueada si hay cierre anterior
-    } else {
+      setBaseIsLocked(true)   // bloquear — viene de cierre anterior
+    } else if (!json.suggestedBase || json.suggestedBase === 0) {
       setBaseIsLocked(false)  // primer turno — puede ingresar manualmente
     }
     setLoading(false)
@@ -230,12 +219,10 @@ export default function CierreCajaPage() {
   function dismissAdminResponse() {
     if (adminResponse?.status === 'approved') {
       resetForm()
-      // Marcar el borrador como visto
+      // Marcar el borrador como visto — llamar API para eliminarlo
       if (worker) {
         fetch('/api/worker/cash-register-draft/dismiss?worker_id=' + worker.id, { method: 'DELETE' })
       }
-      // Recargar para obtener la base del cierre aprobado
-      loadData()
     }
     setAdminResponse(null)
   }

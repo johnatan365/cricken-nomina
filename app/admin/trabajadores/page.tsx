@@ -13,7 +13,7 @@ type WorkerSchedule = {
   is_active: boolean
 }
 
-type WorkerWithRates = Worker & { rates: HourlyRate[]; schedules: WorkerSchedule[]; has_cash_register: boolean }
+type WorkerWithRates = Worker & { rates: HourlyRate[]; schedules: WorkerSchedule[]; has_cash_register: boolean; sunday_rate: number | null }
 
 export default function TrabajadoresPage() {
   const [workers, setWorkers] = useState<WorkerWithRates[]>([])
@@ -44,12 +44,14 @@ export default function TrabajadoresPage() {
     ])
     const wData = await wRes.json()
     const rData = await rRes.json()
+
     const workersData: Worker[] = wData.workers || []
     const ratesData: HourlyRate[] = rData.rates || []
 
     const ws = workersData.map((w) => ({
       ...w,
       has_cash_register: (w as WorkerWithRates).has_cash_register ?? false,
+      sunday_rate: (w as WorkerWithRates).sunday_rate ?? null,
       rates: ratesData.filter((r) => r.worker_id === w.id).sort((a, b) => a.start_time.localeCompare(b.start_time)),
       schedules: [],
     }))
@@ -181,6 +183,27 @@ export default function TrabajadoresPage() {
         </div>
       )}
 
+      {/* Tarifa dominical global */}
+      <div className="card flex items-center justify-between gap-4">
+        <div>
+          <p className="text-white font-semibold text-sm">🌅 Tarifa dominical</p>
+          <p className="text-white/40 text-xs mt-0.5">Se aplica a todos los trabajadores los domingos</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="number" min="0" step="500"
+            value={sundayRate}
+            onChange={e => setSundayRate(e.target.value)}
+            placeholder="$ por hora"
+            className="input-field w-40"
+          />
+          <button onClick={saveSundayRate} disabled={savingSundayRate}
+            className="btn-primary !py-2 !px-4 !text-xs whitespace-nowrap">
+            {savingSundayRate ? 'Guardando...' : 'Guardar'}
+          </button>
+        </div>
+      </div>
+
       {loading ? <div className="text-center py-10 text-white/40">Cargando...</div> : (
         <div className="grid md:grid-cols-2 gap-4">
           <div className="space-y-3">
@@ -236,6 +259,41 @@ export default function TrabajadoresPage() {
                     {selected.is_active ? 'Desactivar' : 'Activar'}
                   </button>
                   <button onClick={() => deleteWorker(selected)} className="text-xs bg-red-600/30 text-red-300 border border-red-500/30 px-3 py-1.5 rounded-xl hover:bg-red-600/50 transition-all">Eliminar</button>
+                </div>
+              </div>
+
+              {/* Tarifa dominical / festivos por trabajador */}
+              <div className="flex items-center justify-between px-4 py-3 bg-white/5 rounded-2xl border border-white/10">
+                <div>
+                  <p className="text-white text-sm font-semibold">🌅 Tarifa dom./festivos</p>
+                  <p className="text-white/40 text-xs mt-0.5">
+                    {selected.sunday_rate ? `$${selected.sunday_rate.toLocaleString('es-CO')}/hr` : 'Sin tarifa especial — usa tarifas normales'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number" min="0" step="500"
+                    defaultValue={selected.sunday_rate || ''}
+                    placeholder="$ /hr"
+                    id={`sunday-rate-${selected.id}`}
+                    className="w-28 bg-white/10 border border-white/15 rounded-xl px-2 py-1.5 text-white text-xs font-bold focus:outline-none focus:border-yellow-400/60 transition-all"
+                  />
+                  <button
+                    onClick={async () => {
+                      const input = document.getElementById(`sunday-rate-${selected.id}`) as HTMLInputElement
+                      const val = parseFloat(input.value) || null
+                      const res = await fetch('/api/admin/workers', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ id: selected.id, sunday_rate: val }),
+                      })
+                      if (res.ok) { showStatus('success', val ? `Tarifa dom. guardada: $${val.toLocaleString('es-CO')}/hr` : 'Tarifa dominical eliminada'); await loadData() }
+                      else showStatus('error', 'Error al guardar')
+                    }}
+                    className="text-xs bg-yellow-400/20 text-yellow-300 px-3 py-1.5 rounded-xl hover:bg-yellow-400/30 transition-all font-semibold"
+                  >
+                    Guardar
+                  </button>
                 </div>
               </div>
 
