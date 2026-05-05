@@ -159,6 +159,7 @@ export default function CierreCajaPage() {
       d.cashToOwner ||
       d.differenceNote ||
       d.billCounts?.some((b: {quantity: string}) => b.quantity && b.quantity !== '0') ||
+      d.puveTransfers?.some((t: {amount: string}) => t.amount && t.amount !== '') ||
       d.didiOrders?.length > 0 ||
       d.whatsappOrders?.length > 0 ||
       d.supplierPayments?.length > 0
@@ -248,13 +249,14 @@ export default function CierreCajaPage() {
   }
 
   function resetForm() {
+    clearDraft()  // limpiar localStorage primero
+    setDataLoaded(false)  // resetear para que el useEffect del borrador no restaure nada
     setShift('morning'); setPuveTotalReported('')
     setBillCounts(BILL_DENOMINATIONS.map(d => ({ denomination: d, quantity: '' })))
     setPuveTransfers([{ amount: '' }])
-    setDidiOrders([]); setWhatsappOrders([])
+    setDidiOrders([]); setWhatsappOrders([]); setSupplierPayments([])
     setCashToOwner(''); setDifferenceNote('')
-    setDraftRestored(false); clearDraft()
-    // Recargar base del servidor — NO tocar baseIsLocked manualmente
+    setDraftRestored(false)
     loadData()
   }
 
