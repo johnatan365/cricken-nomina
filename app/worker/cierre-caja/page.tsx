@@ -164,7 +164,9 @@ export default function CierreCajaPage() {
     )
     if (!hasReal) { clearDraft(); return }
     if (d.shift)              setShift(d.shift)
-    // openingFund NO se restaura del borrador — siempre viene del servidor
+    // openingFund: solo restaurar si NO hay base del servidor (primer turno)
+    // Si baseIsLocked=true, la base ya viene del servidor y no se sobreescribe
+    if (d.openingFund && !baseIsLocked) setOpeningFund(d.openingFund)
     if (d.puveTotalReported)  setPuveTotalReported(d.puveTotalReported)
     if (d.billCounts)         setBillCounts(d.billCounts)
     if (d.puveTransfers)      setPuveTransfers(d.puveTransfers)
