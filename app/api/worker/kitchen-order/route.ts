@@ -26,18 +26,22 @@ export async function GET(req: NextRequest) {
   const supabase     = createAdminClient()
   const deliveryDate = getDeliveryDate()
 
+  const orderType = searchParams.get('order_type') || 'kitchen'
+
   // Buscar pedido activo (pending) para la fecha calculada
   const { data: order } = await supabase
     .from('kitchen_orders')
     .select('*, worker:workers(full_name), items:kitchen_order_items(*, product:kitchen_products(*))')
     .eq('delivery_date', deliveryDate)
     .eq('status', 'pending')
+    .eq('order_type', orderType)
     .maybeSingle()
 
   const { data: products } = await supabase
     .from('kitchen_products')
     .select('*')
     .eq('is_active', true)
+    .eq('order_type', orderType)
     .order('sort_order')
 
   const orderWithName = order ? { ...order, worker_name: (order as any).worker?.full_name || '' } : null
