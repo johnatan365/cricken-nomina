@@ -9,7 +9,8 @@ const BASE_NAV = [
   { href: '/worker/fichar',    icon: '⏱️', label: 'Fichar' },
   { href: '/worker/historial', icon: '📊', label: 'Mi Historial' },
 ]
-const CASH_NAV = { href: '/worker/cierre-caja', icon: '🧾', label: 'Cierre de Caja' }
+const CASH_NAV    = { href: '/worker/cierre-caja', icon: '🧾', label: 'Cierre de Caja' }
+const KITCHEN_NAV = { href: '/worker/pedido', icon: '🛒', label: 'Pedido Cocina' }
 
 export default function WorkerLayout({ children }: { children: React.ReactNode }) {
   const router   = useRouter()
@@ -18,6 +19,7 @@ export default function WorkerLayout({ children }: { children: React.ReactNode }
   const [mobileOpen, setMobileOpen]   = useState(false)  // mobile: cerrado por defecto
   const [workerName, setWorkerName]   = useState('')
   const [hasCash, setHasCash]         = useState(false)
+  const [hasKitchen, setHasKitchen]   = useState(false)
 
   useEffect(() => {
     async function loadWorker() {
@@ -25,18 +27,23 @@ export default function WorkerLayout({ children }: { children: React.ReactNode }
       if (!user) { router.push('/auth/login'); return }
       const { data } = await supabase
         .from('workers')
-        .select('full_name, has_cash_register')
+        .select('full_name, has_cash_register, has_kitchen_access')
         .eq('auth_user_id', user.id)
         .single()
       if (data) {
         setWorkerName(data.full_name)
         setHasCash(data.has_cash_register ?? false)
+        setHasKitchen(data.has_kitchen_access ?? false)
       }
     }
     loadWorker()
   }, [router])
 
-  const navItems = hasCash ? [...BASE_NAV, CASH_NAV] : BASE_NAV
+  const navItems = [
+    ...BASE_NAV,
+    ...(hasCash    ? [CASH_NAV]    : []),
+    ...(hasKitchen ? [KITCHEN_NAV] : []),
+  ]
 
   const handleLogout = async () => {
     await supabase.auth.signOut()

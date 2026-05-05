@@ -13,7 +13,7 @@ type WorkerSchedule = {
   is_active: boolean
 }
 
-type WorkerWithRates = Worker & { rates: HourlyRate[]; schedules: WorkerSchedule[]; has_cash_register: boolean; sunday_rate: number | null }
+type WorkerWithRates = Worker & { rates: HourlyRate[]; schedules: WorkerSchedule[]; has_cash_register: boolean; sunday_rate: number | null; has_kitchen_access: boolean }
 
 export default function TrabajadoresPage() {
   const [workers, setWorkers] = useState<WorkerWithRates[]>([])
@@ -52,6 +52,7 @@ export default function TrabajadoresPage() {
       ...w,
       has_cash_register: (w as WorkerWithRates).has_cash_register ?? false,
       sunday_rate: (w as WorkerWithRates).sunday_rate ?? null,
+      has_kitchen_access: (w as WorkerWithRates).has_kitchen_access ?? false,
       rates: ratesData.filter((r) => r.worker_id === w.id).sort((a, b) => a.start_time.localeCompare(b.start_time)),
       schedules: [],
     }))
@@ -97,6 +98,18 @@ export default function TrabajadoresPage() {
       body: JSON.stringify({ id: worker.id, is_active: !worker.is_active }),
     })
     await loadData()
+  }
+
+  async function toggleKitchen(worker: WorkerWithRates) {
+    const newVal = !worker.has_kitchen_access
+    await fetch('/api/admin/workers', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: worker.id, has_kitchen_access: newVal }),
+    })
+    setWorkers(prev => prev.map(w => w.id === worker.id ? { ...w, has_kitchen_access: newVal } : w))
+    setSelected(prev => prev ? { ...prev, has_kitchen_access: newVal } : prev)
+    showStatus('success', newVal ? 'Acceso a pedidos activado' : 'Acceso a pedidos desactivado')
   }
 
   async function toggleCash(worker: WorkerWithRates) {
@@ -274,6 +287,20 @@ export default function TrabajadoresPage() {
                     Guardar
                   </button>
                 </div>
+              </div>
+
+              {/* Toggle pedidos cocina */}
+              <div className="flex items-center justify-between px-4 py-3 bg-white/5 rounded-2xl border border-white/10">
+                <div>
+                  <p className="text-white text-sm font-semibold">🛒 Pedido Cocina</p>
+                  <p className="text-white/40 text-xs mt-0.5">
+                    {selected.has_kitchen_access ? 'Puede hacer pedidos de cocina' : 'Sin acceso a pedidos de cocina'}
+                  </p>
+                </div>
+                <button onClick={() => toggleKitchen(selected)}
+                  className={`relative w-12 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${selected.has_kitchen_access ? 'bg-yellow-400' : 'bg-white/20'}`}>
+                  <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all duration-200 ${selected.has_kitchen_access ? 'left-7' : 'left-1'}`} />
+                </button>
               </div>
 
               {/* Toggle cierre de caja */}
