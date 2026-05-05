@@ -178,10 +178,11 @@ export default function CierreCajaPage() {
     setDraftRestored(true)
   }, [dataLoaded])
 
-  // Autosave
+  // Autosave — solo después de que los datos se restauraron
   useEffect(() => {
+    if (!dataLoaded) return  // no guardar hasta que el servidor y el borrador estén listos
     saveDraft({ shift, openingFund, puveTotalReported, billCounts, puveTransfers, didiOrders, whatsappOrders, supplierPayments, cashToOwner, differenceNote })
-  }, [shift, openingFund, puveTotalReported, billCounts, puveTransfers, didiOrders, whatsappOrders, supplierPayments, cashToOwner, differenceNote])
+  }, [shift, openingFund, puveTotalReported, billCounts, puveTransfers, didiOrders, whatsappOrders, supplierPayments, cashToOwner, differenceNote, dataLoaded])
 
   const loadData = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
