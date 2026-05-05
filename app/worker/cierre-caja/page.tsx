@@ -153,19 +153,19 @@ export default function CierreCajaPage() {
     if (!dataLoaded) return  // esperar que loadData() termine y baseIsLocked esté correcto
     const d = loadDraft()
     if (!d) return
-    // Verificar datos reales antes de mostrar modal
-    const hasReal = (
-      d.billCounts?.some((b: {quantity: string}) => b.quantity && b.quantity !== '0' && b.quantity !== '') ||
-      d.puveTransfers?.some((t: {amount: string}) => t.amount && t.amount !== '') ||
+    // Hay datos reales si cualquier campo tiene valor
+    const hasReal = !!(
+      d.puveTotalReported ||
+      d.cashToOwner ||
+      d.differenceNote ||
+      d.billCounts?.some((b: {quantity: string}) => b.quantity && b.quantity !== '0') ||
       d.didiOrders?.length > 0 ||
       d.whatsappOrders?.length > 0 ||
-      d.supplierPayments?.length > 0 ||
-      (d.puveTotalReported && d.puveTotalReported !== '')
+      d.supplierPayments?.length > 0
     )
     if (!hasReal) { clearDraft(); return }
     if (d.shift)              setShift(d.shift)
-    // openingFund: solo restaurar si NO hay base del servidor (primer turno)
-    // Si baseIsLocked=true, la base ya viene del servidor y no se sobreescribe
+    // openingFund solo si primer turno (no bloqueado)
     if (d.openingFund && !baseIsLocked) setOpeningFund(d.openingFund)
     if (d.puveTotalReported)  setPuveTotalReported(d.puveTotalReported)
     if (d.billCounts)         setBillCounts(d.billCounts)
@@ -216,11 +216,12 @@ export default function CierreCajaPage() {
       setPendingDraft(null)
       setHasPendingDiff(false)
     }
-    if (json.suggestedBase > 0 && !loadDraft()?.openingFund) {
+    // Base SIEMPRE del servidor — tiene prioridad absoluta
+    if (json.suggestedBase > 0) {
       setSuggestedBase(json.suggestedBase)
       setOpeningFund(String(json.suggestedBase))
-      setBaseIsLocked(true)   // bloquear — viene de cierre anterior
-    } else if (!json.suggestedBase || json.suggestedBase === 0) {
+      setBaseIsLocked(true)   // siempre bloqueada si hay cierre anterior
+    } else {
       setBaseIsLocked(false)  // primer turno — puede ingresar manualmente
     }
     setLoading(false)
