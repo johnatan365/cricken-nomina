@@ -28,14 +28,19 @@ export async function GET(req: NextRequest) {
 
   const orderType = searchParams.get('order_type') || 'kitchen'
 
-  // Buscar pedido activo (pending) para la fecha calculada
-  const { data: order } = await supabase
+  // Primero buscar si hay algún pedido pending sin confirmar (cualquier fecha)
+  const { data: pendingOrder } = await supabase
     .from('kitchen_orders')
     .select('*, worker:workers(full_name), items:kitchen_order_items(*, product:kitchen_products(*))')
-    .eq('delivery_date', deliveryDate)
     .eq('status', 'pending')
     .eq('order_type', orderType)
+    .order('delivery_date', { ascending: false })
+    .limit(1)
     .maybeSingle()
+
+  // Si hay pending usar ese, si no usar la fecha calculada para nuevo pedido
+  const order = pendingOrder || null
+  const effectiveDeliveryDate = pendingOrder ? pendingOrder.delivery_date : deliveryDate
 
   const { data: products } = await supabase
     .from('kitchen_products')
@@ -45,7 +50,7 @@ export async function GET(req: NextRequest) {
     .order('sort_order')
 
   const orderWithName = order ? { ...order, worker_name: (order as any).worker?.full_name || '' } : null
-  return NextResponse.json({ order: orderWithName, products, deliveryDate })
+  return NextResponse.json({ order: orderWithName, products, deliveryDate: effectiveDeliveryDate })
 }
 
 export async function POST(req: NextRequest) {
@@ -81,12 +86,13 @@ export async function POST(req: NextRequest) {
   if (orderItems.length > 0) await supabase.from('kitchen_order_items').insert(orderItems)
 
   // Generar link wa.me con el pedido completo
+  const orderLabel = (body_data.order_type || 'kitchen') === 'cash' ? 'Pedido Caja Cricken' : 'Pedido Cocina Cricken'
   const lines = items
     .filter((i: {qty_requested: number}) => i.qty_requested > 0)
-    .map((i: {name: string; qty_requested: number}) => `• ${i.name}: ${i.qty_requested}`)
+    .map((i: {name: string; qty_requested: number}) => `${i.qty_requested} - ${i.name}`)
     .join('\n')
-  const msg     = `🛒 *Pedido Cricken*\n📅 Entrega: ${delivery_date}\n\n${lines}`
-  const waLink  = `https://wa.me/573192099123?text=${encodeURIComponent(msg)}`
+  const msg    = `*${orderLabel}*\nEntrega: ${delivery_date}\n\n${lines}`
+  const waLink = `https://wa.me/573192099123?text=${encodeURIComponent(msg)}`
 
   return NextResponse.json({ ok: true, order, waLink })
 }

@@ -24,6 +24,38 @@ export default function PedidoPage() {
   const [search, setSearch]             = useState('')
   const qtyRefs = useRef<(HTMLInputElement | null)[]>([])
   const delRefs = useRef<(HTMLInputElement | null)[]>([])
+  const DRAFT_KEY = 'pedido_draft_cash'
+
+  // Guardar draft en localStorage
+  useEffect(() => {
+    if (Object.keys(quantities).some(k => quantities[k] > 0)) {
+      localStorage.setItem(DRAFT_KEY + '_qty', JSON.stringify(quantities))
+    }
+  }, [quantities])
+
+  useEffect(() => {
+    if (Object.keys(deliveries).some(k => deliveries[k] !== '')) {
+      localStorage.setItem(DRAFT_KEY + '_del', JSON.stringify(deliveries))
+    }
+  }, [deliveries])
+
+  useEffect(() => {
+    if (Object.keys(observations).some(k => observations[k] !== '')) {
+      localStorage.setItem(DRAFT_KEY + '_obs', JSON.stringify(observations))
+    }
+  }, [observations])
+
+  // Restaurar draft al cargar
+  useEffect(() => {
+    try {
+      const qty = localStorage.getItem(DRAFT_KEY + '_qty')
+      const del = localStorage.getItem(DRAFT_KEY + '_del')
+      const obs = localStorage.getItem(DRAFT_KEY + '_obs')
+      if (qty) setQuantities(JSON.parse(qty))
+      if (del) setDeliveries(JSON.parse(del))
+      if (obs) setObservations(JSON.parse(obs))
+    } catch {}
+  }, [])
 
   const showModal = (type: 'success'|'error'|'confirm'|'missing', text: string, extra?: { items?: {name: string; pid: string}[]; onConfirm?: () => void }) =>
     setModal({ type, text, ...extra })
@@ -76,6 +108,7 @@ export default function PedidoPage() {
         if (!res.ok) { showModal('error', json.error || 'Error al enviar'); return }
         // Abrir WhatsApp con el pedido listo para enviar
         if (json.waLink) window.open(json.waLink, '_blank')
+        localStorage.removeItem(DRAFT_KEY + '_qty')
         showModal('success', '✅ Pedido listo — confirma el envío en WhatsApp')
         setQuantities({}); loadData()
       }}
@@ -134,6 +167,8 @@ export default function PedidoPage() {
     })
     setSaving(false)
     if (res.ok) {
+      localStorage.removeItem(DRAFT_KEY + '_del')
+      localStorage.removeItem(DRAFT_KEY + '_obs')
       showModal('success', '✅ Entrega confirmada. Ya puedes hacer un nuevo pedido.')
       setOrder(null); setDeliveries({}); setObservations({}); setTab('order'); loadData()
     } else showModal('error', 'Error al confirmar entrega')
