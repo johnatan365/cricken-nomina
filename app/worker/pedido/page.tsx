@@ -9,23 +9,23 @@ type OrderItem = { id: string; product_id: string; qty_requested: number; qty_de
 type Order = { id: string; delivery_date: string; status: string; items: OrderItem[] }
 
 export default function PedidoPage() {
-  const [worker, setWorker]         = useState<{ id: string; full_name: string } | null>(null)
-  const [products, setProducts]     = useState<Product[]>([])
-  const [order, setOrder]           = useState<Order | null>(null)
+  const [worker, setWorker]             = useState<{ id: string; full_name: string } | null>(null)
+  const [products, setProducts]         = useState<Product[]>([])
+  const [order, setOrder]               = useState<Order | null>(null)
   const [deliveryDate, setDeliveryDate] = useState('')
-  const [quantities, setQuantities] = useState<Record<string, number>>({})
-  const [deliveries, setDeliveries] = useState<Record<string, string>>({})
+  const [quantities, setQuantities]     = useState<Record<string, number>>({})
+  const [deliveries, setDeliveries]     = useState<Record<string, string>>({})
   const [observations, setObservations] = useState<Record<string, string>>({})
-  const [loading, setLoading]       = useState(true)
-  const [saving, setSaving]         = useState(false)
-  const [modal, setModal]           = useState<{ type: 'success'|'error'|'confirm'; text: string; onConfirm?: () => void } | null>(null)
-  const [tab, setTab]               = useState<'order'|'delivery'>('order')
-  const [search, setSearch]         = useState('')
+  const [loading, setLoading]           = useState(true)
+  const [saving, setSaving]             = useState(false)
+  const [modal, setModal]               = useState<{ type: 'success'|'error'|'confirm'|'missing'; text: string; items?: {name: string; pid: string}[]; onConfirm?: () => void } | null>(null)
+  const [tab, setTab]                   = useState<'order'|'delivery'>('order')
+  const [search, setSearch]             = useState('')
   const qtyRefs = useRef<(HTMLInputElement | null)[]>([])
   const delRefs = useRef<(HTMLInputElement | null)[]>([])
 
-  const showModal = (type: 'success'|'error'|'confirm', text: string, onConfirm?: () => void) =>
-    setModal({ type, text, onConfirm })
+  const showModal = (type: 'success'|'error'|'confirm'|'missing', text: string, extra?: { items?: {name: string; pid: string}[]; onConfirm?: () => void }) =>
+    setModal({ type, text, ...extra })
 
   const loadData = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -50,14 +50,18 @@ export default function PedidoPage() {
   useEffect(() => { loadData() }, [loadData])
 
   const filteredProducts = products.filter(p => p.name.toLowerCase().includes(search.toLowerCase()))
-  const itemsWithQty = products.filter(p => (quantities[p.id] || 0) > 0)
+  const itemsWithQty     = products.filter(p => (quantities[p.id] || 0) > 0)
+
+  // Set de productos pedidos (para validación en entrega)
+  const orderedProductIds = new Set((order?.items || []).map(i => i.product_id))
+  const orderedQtyMap     = Object.fromEntries((order?.items || []).map(i => [i.product_id, i.qty_requested]))
 
   async function submitOrder() {
     if (!worker) return
     if (itemsWithQty.length === 0) { showModal('error', 'Agrega al menos un producto'); return }
     showModal('confirm',
       `¿Enviar pedido con ${itemsWithQty.length} productos para el ${deliveryDate ? format(parseISO(deliveryDate), "d 'de' MMMM", { locale: es }) : deliveryDate}?`,
-      async () => {
+      { onConfirm: async () => {
         setModal(null); setSaving(true)
         const items = products.map(p => ({ product_id: p.id, name: p.name, qty_requested: quantities[p.id] || 0 }))
         const res = await fetch('/api/worker/kitchen-order', {
@@ -69,26 +73,56 @@ export default function PedidoPage() {
         if (!res.ok) { showModal('error', json.error || 'Error al enviar'); return }
         showModal('success', '✅ Pedido enviado correctamente')
         setQuantities({}); loadData()
-      }
+      }}
     )
   }
 
   async function submitDelivery() {
     if (!order) return
-    // Verificar observaciones obligatorias cuando hay diferencia
-    for (const item of order.items) {
-      const delivered = parseInt(deliveries[item.product_id] || '0') || 0
-      if (delivered !== item.qty_requested && !observations[item.product_id]?.trim()) {
-        showModal('error', `"${item.product?.name}" tiene diferencia en cantidad — escribe la observación antes de confirmar`)
+
+    // 1. Verificar observaciones cuando hay diferencia en productos pedidos
+    for (const pid of Array.from(orderedProductIds)) {
+      const delivered = parseFloat(deliveries[pid] || '') 
+      const requested = orderedQtyMap[pid]
+      const filled    = deliveries[pid] !== undefined && deliveries[pid] !== ''
+
+      if (!filled) {
+        // Producto pedido sin cantidad registrada
+        const name = products.find(p => p.id === pid)?.name || pid
+        showModal('error', `Debes registrar la cantidad entregada de "${name}". Si no llegó, ingresa 0 y escribe la observación.`)
+        return
+      }
+
+      if (delivered !== requested && !observations[pid]?.trim()) {
+        const name = products.find(p => p.id === pid)?.name || ''
+        showModal('error', `"${name}": se pidieron ${requested} y registraste ${delivered}. Debes escribir la observación explicando la diferencia.`)
         return
       }
     }
+
+    // 2. Verificar productos NO pedidos con cantidad > 0 — requieren observación
+    for (const p of products) {
+      const delivered = parseFloat(deliveries[p.id] || '0') || 0
+      if (delivered > 0 && !orderedProductIds.has(p.id) && !observations[p.id]?.trim()) {
+        showModal('error', `"${p.name}" no fue pedido pero registraste ${delivered}. Debes escribir la observación explicando por qué llegó.`)
+        return
+      }
+    }
+
     setSaving(true)
-    const dels = order.items.map((item: OrderItem) => ({
-      product_id:  item.product_id,
-      qty_delivered: parseInt(deliveries[item.product_id] || '0') || 0,
-      observation: observations[item.product_id] || null,
+
+    // Incluir todos los productos con cantidad registrada o pedidos
+    const allPids = new Set([
+      ...Array.from(orderedProductIds),
+      ...products.filter(p => parseFloat(deliveries[p.id] || '0') > 0).map(p => p.id)
+    ])
+
+    const dels = Array.from(allPids).map(pid => ({
+      product_id:    pid,
+      qty_delivered: parseFloat(deliveries[pid] || '0') || 0,
+      observation:   observations[pid] || null,
     }))
+
     const res = await fetch('/api/worker/kitchen-order', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ order_id: order.id, deliveries: dels }),
@@ -100,17 +134,34 @@ export default function PedidoPage() {
     } else showModal('error', 'Error al confirmar entrega')
   }
 
+  // Determinar el estado de validación de un producto en entrega
+  function getDeliveryStatus(pid: string): 'ok'|'diff'|'not-ordered'|'missing'|'empty' {
+    const wasPedido  = orderedProductIds.has(pid)
+    const rawVal     = deliveries[pid]
+    const filled     = rawVal !== undefined && rawVal !== ''
+    const delivered  = parseFloat(rawVal || '0') || 0
+    const requested  = orderedQtyMap[pid] || 0
+
+    if (!filled) return wasPedido ? 'missing' : 'empty'
+    if (delivered === 0 && wasPedido) return 'diff'
+    if (delivered > 0 && !wasPedido) return 'not-ordered'
+    if (wasPedido && delivered !== requested) return 'diff'
+    return 'ok'
+  }
+
   if (loading) return <div className="flex items-center justify-center min-h-[60vh]"><p className="text-white/40 text-sm">Cargando...</p></div>
 
   return (
     <div className="max-w-lg mx-auto space-y-3 pb-24">
+
+      {/* Modales */}
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
           onClick={() => modal.type !== 'confirm' && setModal(null)}>
           <div className="w-full max-w-sm rounded-3xl border bg-purple-900 p-6 space-y-4 text-center"
             onClick={e => e.stopPropagation()}
-            style={{ borderColor: modal.type === 'success' ? 'rgba(52,211,153,0.3)' : modal.type === 'error' ? 'rgba(248,113,113,0.3)' : 'rgba(245,197,24,0.3)' }}>
-            <p className="text-4xl">{modal.type === 'success' ? '✅' : modal.type === 'error' ? '❌' : '📤'}</p>
+            style={{ borderColor: modal.type === 'success' ? 'rgba(52,211,153,0.3)' : modal.type === 'confirm' ? 'rgba(245,197,24,0.3)' : 'rgba(248,113,113,0.3)' }}>
+            <p className="text-4xl">{modal.type === 'success' ? '✅' : modal.type === 'confirm' ? '📤' : '❌'}</p>
             <p className="text-white font-bold text-sm">{modal.text}</p>
             {modal.type === 'confirm' ? (
               <div className="flex gap-3">
@@ -118,12 +169,13 @@ export default function PedidoPage() {
                 <button onClick={modal.onConfirm} className="flex-1 py-2.5 rounded-2xl text-sm font-bold bg-yellow-400 text-purple-900">Enviar</button>
               </div>
             ) : (
-              <button onClick={() => setModal(null)} className="w-full py-2.5 rounded-2xl text-sm font-bold bg-white/10 text-white">Cerrar</button>
+              <button onClick={() => setModal(null)} className="w-full py-2.5 rounded-2xl text-sm font-bold bg-white/10 text-white">Entendido</button>
             )}
           </div>
         </div>
       )}
 
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="page-title text-xl">Pedido Cocina</h1>
@@ -132,11 +184,12 @@ export default function PedidoPage() {
         {order && <span className="text-xs px-3 py-1 rounded-full font-bold bg-yellow-400/20 text-yellow-300">⏳ Pendiente</span>}
       </div>
 
+      {/* Tabs */}
       <div className="flex gap-2 bg-white/5 rounded-2xl p-1">
         {(['order', 'delivery'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${tab === t ? 'bg-yellow-400 text-purple-900' : 'text-white/50'}`}>
-            {t === 'order' ? '📋 Pedido' : '📦 Entrega'}
+            {t === 'order' ? '📋 Hacer pedido' : '📦 Confirmar entrega'}
           </button>
         ))}
       </div>
@@ -148,7 +201,7 @@ export default function PedidoPage() {
             <div className="card text-center py-8 space-y-3">
               <p className="text-4xl">✅</p>
               <p className="text-white font-bold">Pedido enviado</p>
-              <p className="text-white/50 text-sm">Confirma la entrega cuando llegue el pedido</p>
+              <p className="text-white/50 text-sm">Cuando llegue el pedido, ve a "Confirmar entrega"</p>
               <button onClick={() => setTab('delivery')} className="btn-primary">Confirmar entrega →</button>
             </div>
           ) : (
@@ -177,10 +230,9 @@ export default function PedidoPage() {
                       onChange={e => setQuantities(prev => ({ ...prev, [p.id]: parseInt(e.target.value) || 0 }))}
                       onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); qtyRefs.current[i + 1]?.focus() } }}
                       placeholder="0"
-                      className={`w-16 text-center rounded-xl px-2 py-2 text-white text-sm font-bold focus:outline-none transition-all border ${(quantities[p.id] || 0) > 0 ? 'bg-yellow-400/20 border-yellow-400/40 text-yellow-300' : 'bg-white/10 border-white/15'}`} />
+                      className={`w-16 text-center rounded-xl px-2 py-2 text-sm font-bold focus:outline-none transition-all border ${(quantities[p.id] || 0) > 0 ? 'bg-yellow-400/20 border-yellow-400/40 text-yellow-300' : 'bg-white/10 border-white/15 text-white'}`} />
                   </div>
                 ))}
-                {filteredProducts.length === 0 && <p className="text-white/30 text-sm text-center py-8">Sin resultados</p>}
               </div>
             </>
           )}
@@ -194,32 +246,66 @@ export default function PedidoPage() {
             <div className="card text-center py-8"><p className="text-3xl mb-2">📋</p><p className="text-white/50 text-sm">Primero haz el pedido</p></div>
           ) : (
             <>
-              <p className="text-white/50 text-xs px-1">Ingresa la cantidad recibida. Si es diferente a lo pedido, escribe la observación.</p>
+              <div className="bg-blue-500/10 border border-blue-400/20 rounded-2xl px-4 py-3">
+                <p className="text-blue-300 text-xs font-semibold">📦 Instrucciones</p>
+                <p className="text-white/60 text-xs mt-1">Revisa producto por producto e ingresa exactamente lo que llegó. Si hay diferencia con lo pedido o llegó algo no pedido, escribe la observación.</p>
+              </div>
+
               <div className="space-y-2">
-                {order.items.map((item: OrderItem, i: number) => {
-                  const delivered = parseInt(deliveries[item.product_id] || '0') || 0
-                  const hasDiff   = deliveries[item.product_id] !== undefined && delivered !== item.qty_requested
+                {products.map((p, i) => {
+                  const status = getDeliveryStatus(p.id)
+                  const delivered = parseFloat(deliveries[p.id] || '0') || 0
+                  const requested = orderedQtyMap[p.id]
+
+                  const borderColor =
+                    status === 'ok'          ? 'border-emerald-400/30' :
+                    status === 'diff'        ? 'border-red-400/40' :
+                    status === 'not-ordered' ? 'border-yellow-400/40' :
+                    status === 'missing'     ? 'border-orange-400/40' :
+                    'border-white/10'
+
+                  const needsObs = status === 'diff' || status === 'not-ordered'
+
+                  let hint = ''
+                  if (status === 'diff' && requested !== undefined) {
+                    if (delivered > requested) hint = `Se pidieron ${requested} y estás registrando ${delivered} — ¿por qué llegaron más?`
+                    else if (delivered < requested && delivered > 0) hint = `Se pidieron ${requested} y estás registrando ${delivered} — ¿por qué llegaron menos?`
+                    else if (delivered === 0) hint = `Este producto fue pedido (${requested}) pero registras 0 — ¿por qué no llegó?`
+                  }
+                  if (status === 'not-ordered') hint = `Este producto no fue pedido — ¿por qué lo están entregando?`
+
                   return (
-                    <div key={item.product_id} className={`card space-y-2 ${hasDiff ? 'border-yellow-400/30' : ''}`}>
+                    <div key={p.id} className={`card space-y-2 border ${borderColor} transition-all`}>
                       <div className="flex items-center gap-3">
-                        <span className="flex-1 text-white text-sm">{item.product?.name}</span>
+                        <span className="flex-1 text-white text-sm leading-tight font-medium">{p.name}</span>
                         <input ref={el => { delRefs.current[i] = el }}
                           type="number" inputMode="numeric" min="0"
-                          value={deliveries[item.product_id] || ''}
-                          onChange={e => setDeliveries(prev => ({ ...prev, [item.product_id]: e.target.value }))}
+                          value={deliveries[p.id] ?? ''}
+                          onChange={e => setDeliveries(prev => ({ ...prev, [p.id]: e.target.value }))}
                           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); delRefs.current[i + 1]?.focus() } }}
                           placeholder="Cant."
-                          className={`w-20 text-center rounded-xl px-2 py-2 text-sm font-bold focus:outline-none transition-all border ${hasDiff ? 'bg-yellow-400/20 border-yellow-400/40 text-yellow-300' : deliveries[item.product_id] ? 'bg-emerald-500/20 border-emerald-400/30 text-emerald-300' : 'bg-white/10 border-white/15 text-white'}`} />
+                          className={`w-20 text-center rounded-xl px-2 py-2 text-sm font-bold focus:outline-none transition-all border ${
+                            status === 'ok'          ? 'bg-emerald-500/20 border-emerald-400/30 text-emerald-300' :
+                            status === 'diff'        ? 'bg-red-500/20 border-red-400/40 text-red-300' :
+                            status === 'not-ordered' ? 'bg-yellow-400/20 border-yellow-400/40 text-yellow-300' :
+                            status === 'missing'     ? 'bg-orange-500/20 border-orange-400/30 text-orange-300' :
+                            'bg-white/10 border-white/15 text-white'
+                          }`} />
                       </div>
-                      {hasDiff && (
+
+                      {hint && (
+                        <p className={`text-xs px-1 ${status === 'not-ordered' ? 'text-yellow-300' : 'text-red-300'}`}>
+                          ⚠ {hint}
+                        </p>
+                      )}
+
+                      {needsObs && (
                         <div>
-                          <p className="text-yellow-300 text-xs mb-1">⚠ Diferencia detectada — observación obligatoria <span className="text-red-400">*</span></p>
-                          <textarea
-                            rows={2}
-                            value={observations[item.product_id] || ''}
-                            onChange={e => setObservations(prev => ({ ...prev, [item.product_id]: e.target.value }))}
-                            placeholder="Explica la diferencia (ej: solo llegaron 3 porque faltaba stock)..."
-                            className={`w-full bg-white/10 border rounded-xl px-3 py-2 text-white text-xs resize-none focus:outline-none transition-all ${observations[item.product_id]?.trim() ? 'border-emerald-400/40' : 'border-yellow-400/40'}`} />
+                          <p className="text-white/50 text-xs mb-1">Observación obligatoria <span className="text-red-400">*</span></p>
+                          <textarea rows={2} value={observations[p.id] || ''}
+                            onChange={e => setObservations(prev => ({ ...prev, [p.id]: e.target.value }))}
+                            placeholder="Explica la diferencia..."
+                            className={`w-full bg-white/10 border rounded-xl px-3 py-2 text-white text-xs resize-none focus:outline-none transition-all ${observations[p.id]?.trim() ? 'border-emerald-400/40' : 'border-red-400/40'}`} />
                         </div>
                       )}
                     </div>
@@ -231,6 +317,7 @@ export default function PedidoPage() {
         </>
       )}
 
+      {/* Botón pedido */}
       {tab === 'order' && !order && (
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-purple-950 to-transparent">
           <button onClick={submitOrder} disabled={saving || itemsWithQty.length === 0}
@@ -240,6 +327,7 @@ export default function PedidoPage() {
         </div>
       )}
 
+      {/* Botón entrega */}
       {tab === 'delivery' && order && (
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-purple-950 to-transparent">
           <button onClick={submitDelivery} disabled={saving}
