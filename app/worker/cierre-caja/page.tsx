@@ -737,11 +737,17 @@ export default function CierreCajaPage() {
                     className="w-full bg-white/10 border border-white/15 rounded-lg px-2 py-1.5 text-white text-sm font-bold focus:outline-none focus:border-yellow-400/60 transition-all" />
                 </div>
 
-                {/* Base siguiente día — solo lectura, solo el admin puede modificarla */}
+                {/* Sobre y base — calculados automáticamente */}
                 {nextBase !== null && (
-                  <div className="flex justify-between text-xs bg-emerald-500/10 border border-emerald-400/20 rounded-lg px-2 py-1.5">
-                    <span className="text-emerald-300/80 font-bold">Base sig. día</span>
-                    <span className="text-emerald-400 font-bold">{cop(nextBase)}</span>
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between text-sm bg-yellow-400/15 border border-yellow-400/30 rounded-xl px-3 py-2.5">
+                      <span className="text-yellow-300 font-bold">📨 Meter en el sobre</span>
+                      <span className="text-yellow-400 font-bold text-base">{cop(Math.max(0, cashToEnvelope ?? 0))}</span>
+                    </div>
+                    <div className="flex justify-between text-xs bg-emerald-500/10 border border-emerald-400/20 rounded-lg px-2 py-1.5">
+                      <span className="text-emerald-300/80 font-bold">✓ Base sig. día</span>
+                      <span className="text-emerald-400 font-bold">{cop(nextBase)}</span>
+                    </div>
                   </div>
                 )}
 
