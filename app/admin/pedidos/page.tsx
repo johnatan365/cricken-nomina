@@ -331,7 +331,7 @@ export default function AdminPedidosPage() {
                                       onChange={e => setEditingItem(prev => ({ ...prev, [item.id]: { ...prev[item.id], price: e.target.value } }))}
                                       className="w-full text-right bg-white/10 border border-white/15 rounded-lg px-1 py-1 text-white text-xs focus:outline-none" />
                                     <span className="text-white text-xs font-semibold text-right">
-                                    {order.status === 'delivered' ? cop((i.qty_delivered ?? 0) * price) : '—'}
+                                    {order.status === 'delivered' ? cop((item.qty_delivered ?? 0) * price) : '—'}
                                   </span>
                                     <div className="flex justify-end gap-1">
                                       {isDirty && <button onClick={() => saveItemEdit(item.id)} className="text-yellow-400 text-xs">💾</button>}
