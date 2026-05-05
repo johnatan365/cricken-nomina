@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
+
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
@@ -8,15 +9,26 @@ export async function GET() {
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ products: data })
 }
+
 export async function POST(req: NextRequest) {
   const body = await req.json()
   const supabase = createAdminClient()
+
+  // Reordenar productos
+  if (body.type === 'reorder') {
+    for (const { id, sort_order } of body.items) {
+      await supabase.from('kitchen_products').update({ sort_order }).eq('id', id)
+    }
+    return NextResponse.json({ ok: true })
+  }
+
   const { data, error } = await supabase.from('kitchen_products')
     .insert({ name: body.name, price: body.price || 0, supplier: body.supplier || 'Brisas', sort_order: 999 })
     .select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ product: data })
 }
+
 export async function PATCH(req: NextRequest) {
   const body = await req.json()
   const supabase = createAdminClient()
@@ -26,6 +38,7 @@ export async function PATCH(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ ok: true })
 }
+
 export async function DELETE(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const supabase = createAdminClient()

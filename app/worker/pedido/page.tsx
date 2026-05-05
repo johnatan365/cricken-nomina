@@ -5,7 +5,7 @@ import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 
 type Product = { id: string; name: string; sort_order: number }
-type OrderItem = { id: string; product_id: string; qty_requested: number; qty_delivered: number | null; product: Product }
+type OrderItem = { id: string; product_id: string; qty_requested: number; qty_delivered: number | null; observation: string | null; product: Product }
 type Order = { id: string; delivery_date: string; status: string; items: OrderItem[] }
 
 export default function PedidoPage() {
@@ -15,6 +15,7 @@ export default function PedidoPage() {
   const [deliveryDate, setDeliveryDate] = useState('')
   const [quantities, setQuantities] = useState<Record<string, number>>({})
   const [deliveries, setDeliveries] = useState<Record<string, string>>({})
+  const [observations, setObservations] = useState<Record<string, string>>({})
   const [loading, setLoading]       = useState(true)
   const [saving, setSaving]         = useState(false)
   const [modal, setModal]           = useState<{ type: 'success'|'error'|'confirm'; text: string; onConfirm?: () => void } | null>(null)
@@ -38,19 +39,9 @@ export default function PedidoPage() {
     setDeliveryDate(json.deliveryDate)
     if (json.order) {
       setOrder(json.order)
-      const del: Record<string, string> = {}
-      json.order.items?.forEach((item: OrderItem) => {
-        if (item.qty_delivered !== null) del[item.product_id] = String(item.qty_delivered)
-      })
-      setDeliveries(del)
-      // Si el pedido fue entregado, permitir hacer nuevo pedido
-      if (json.order.status === 'delivered') {
-        setOrder(null)  // habilitar nuevo pedido
-        setTab('order')
-      } else {
-        setTab('delivery')
-      }
+      setTab('delivery')
     } else {
+      setOrder(null)
       setTab('order')
     }
     setLoading(false)
@@ -58,51 +49,54 @@ export default function PedidoPage() {
 
   useEffect(() => { loadData() }, [loadData])
 
-  const filteredProducts = products.filter(p =>
-    p.name.toLowerCase().includes(search.toLowerCase())
-  )
+  const filteredProducts = products.filter(p => p.name.toLowerCase().includes(search.toLowerCase()))
   const itemsWithQty = products.filter(p => (quantities[p.id] || 0) > 0)
 
   async function submitOrder() {
     if (!worker) return
     if (itemsWithQty.length === 0) { showModal('error', 'Agrega al menos un producto'); return }
-    showModal('confirm', `¿Enviar pedido con ${itemsWithQty.length} productos para el ${deliveryDate ? format(parseISO(deliveryDate), "d 'de' MMMM", { locale: es }) : deliveryDate}?`, async () => {
-      setModal(null)
-      setSaving(true)
-      const items = products.map(p => ({ product_id: p.id, name: p.name, qty_requested: quantities[p.id] || 0 }))
-      const res = await fetch('/api/worker/kitchen-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ worker_id: worker.id, items, delivery_date: deliveryDate }),
-      })
-      const json = await res.json()
-      setSaving(false)
-      if (!res.ok) { showModal('error', json.error || 'Error al enviar'); return }
-      showModal('success', '✅ Pedido enviado correctamente')
-      setQuantities({})
-      loadData()
-    })
+    showModal('confirm',
+      `¿Enviar pedido con ${itemsWithQty.length} productos para el ${deliveryDate ? format(parseISO(deliveryDate), "d 'de' MMMM", { locale: es }) : deliveryDate}?`,
+      async () => {
+        setModal(null); setSaving(true)
+        const items = products.map(p => ({ product_id: p.id, name: p.name, qty_requested: quantities[p.id] || 0 }))
+        const res = await fetch('/api/worker/kitchen-order', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ worker_id: worker.id, items, delivery_date: deliveryDate }),
+        })
+        const json = await res.json()
+        setSaving(false)
+        if (!res.ok) { showModal('error', json.error || 'Error al enviar'); return }
+        showModal('success', '✅ Pedido enviado correctamente')
+        setQuantities({}); loadData()
+      }
+    )
   }
 
   async function submitDelivery() {
     if (!order) return
+    // Verificar observaciones obligatorias cuando hay diferencia
+    for (const item of order.items) {
+      const delivered = parseInt(deliveries[item.product_id] || '0') || 0
+      if (delivered !== item.qty_requested && !observations[item.product_id]?.trim()) {
+        showModal('error', `"${item.product?.name}" tiene diferencia en cantidad — escribe la observación antes de confirmar`)
+        return
+      }
+    }
     setSaving(true)
     const dels = order.items.map((item: OrderItem) => ({
-      product_id: item.product_id,
+      product_id:  item.product_id,
       qty_delivered: parseInt(deliveries[item.product_id] || '0') || 0,
+      observation: observations[item.product_id] || null,
     }))
     const res = await fetch('/api/worker/kitchen-order', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ order_id: order.id, deliveries: dels }),
     })
     setSaving(false)
     if (res.ok) {
       showModal('success', '✅ Entrega confirmada. Ya puedes hacer un nuevo pedido.')
-      setOrder(null)
-      setDeliveries({})
-      setTab('order')
-      loadData()
+      setOrder(null); setDeliveries({}); setObservations({}); setTab('order'); loadData()
     } else showModal('error', 'Error al confirmar entrega')
   }
 
@@ -147,6 +141,7 @@ export default function PedidoPage() {
         ))}
       </div>
 
+      {/* TAB PEDIDO */}
       {tab === 'order' && (
         <>
           {order ? (
@@ -192,30 +187,44 @@ export default function PedidoPage() {
         </>
       )}
 
+      {/* TAB ENTREGA */}
       {tab === 'delivery' && (
         <>
           {!order ? (
             <div className="card text-center py-8"><p className="text-3xl mb-2">📋</p><p className="text-white/50 text-sm">Primero haz el pedido</p></div>
           ) : (
             <>
-              <p className="text-white/50 text-xs px-1">Ingresa la cantidad que llegó. Enter para pasar al siguiente.</p>
-              <div className="card space-y-0 overflow-hidden p-0">
-                {order.items.map((item: OrderItem, i: number) => (
-                  <div key={item.product_id}
-                    className={`flex items-center gap-3 px-4 py-3 ${i < order.items.length - 1 ? 'border-b border-white/5' : ''}`}>
-                    <div className="flex-1">
-                      <span className="text-white text-sm leading-tight">{item.product?.name}</span>
-                      <span className="text-white/30 text-xs ml-2">Pedido: {item.qty_requested}</span>
+              <p className="text-white/50 text-xs px-1">Ingresa la cantidad recibida. Si es diferente a lo pedido, escribe la observación.</p>
+              <div className="space-y-2">
+                {order.items.map((item: OrderItem, i: number) => {
+                  const delivered = parseInt(deliveries[item.product_id] || '0') || 0
+                  const hasDiff   = deliveries[item.product_id] !== undefined && delivered !== item.qty_requested
+                  return (
+                    <div key={item.product_id} className={`card space-y-2 ${hasDiff ? 'border-yellow-400/30' : ''}`}>
+                      <div className="flex items-center gap-3">
+                        <span className="flex-1 text-white text-sm">{item.product?.name}</span>
+                        <input ref={el => { delRefs.current[i] = el }}
+                          type="number" inputMode="numeric" min="0"
+                          value={deliveries[item.product_id] || ''}
+                          onChange={e => setDeliveries(prev => ({ ...prev, [item.product_id]: e.target.value }))}
+                          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); delRefs.current[i + 1]?.focus() } }}
+                          placeholder="Cant."
+                          className={`w-20 text-center rounded-xl px-2 py-2 text-sm font-bold focus:outline-none transition-all border ${hasDiff ? 'bg-yellow-400/20 border-yellow-400/40 text-yellow-300' : deliveries[item.product_id] ? 'bg-emerald-500/20 border-emerald-400/30 text-emerald-300' : 'bg-white/10 border-white/15 text-white'}`} />
+                      </div>
+                      {hasDiff && (
+                        <div>
+                          <p className="text-yellow-300 text-xs mb-1">⚠ Diferencia detectada — observación obligatoria <span className="text-red-400">*</span></p>
+                          <textarea
+                            rows={2}
+                            value={observations[item.product_id] || ''}
+                            onChange={e => setObservations(prev => ({ ...prev, [item.product_id]: e.target.value }))}
+                            placeholder="Explica la diferencia (ej: solo llegaron 3 porque faltaba stock)..."
+                            className={`w-full bg-white/10 border rounded-xl px-3 py-2 text-white text-xs resize-none focus:outline-none transition-all ${observations[item.product_id]?.trim() ? 'border-emerald-400/40' : 'border-yellow-400/40'}`} />
+                        </div>
+                      )}
                     </div>
-                    <input ref={el => { delRefs.current[i] = el }}
-                      type="number" inputMode="numeric" min="0"
-                      value={deliveries[item.product_id] || ''}
-                      onChange={e => setDeliveries(prev => ({ ...prev, [item.product_id]: e.target.value }))}
-                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); delRefs.current[i + 1]?.focus() } }}
-                      placeholder="0"
-                      className={`w-16 text-center rounded-xl px-2 py-2 text-white text-sm font-bold focus:outline-none transition-all border ${deliveries[item.product_id] ? 'bg-emerald-500/20 border-emerald-400/30 text-emerald-300' : 'bg-white/10 border-white/15'}`} />
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </>
           )}

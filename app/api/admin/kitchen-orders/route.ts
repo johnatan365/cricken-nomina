@@ -21,41 +21,52 @@ export async function GET(req: NextRequest) {
   const { data, error } = await q.limit(100)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
-  // Filtrar por proveedor en memoria si se solicita
   let orders = data || []
   if (supplier && supplier !== 'all') {
     orders = orders.map(o => ({
       ...o,
-      items: (o.items || []).filter((i: {product: {supplier: string}}) =>
-        i.product?.supplier === supplier
-      )
+      items: (o.items || []).filter((i: {product: {supplier: string}}) => i.product?.supplier === supplier)
     })).filter(o => o.items.length > 0)
   }
 
   return NextResponse.json({ orders })
 }
 
+export async function POST(req: NextRequest) {
+  // Agregar item a pedido existente
+  const { order_id, product_id, qty_requested } = await req.json()
+  const supabase = createAdminClient()
+  const { error } = await supabase.from('kitchen_order_items')
+    .insert({ order_id, product_id, qty_requested, qty_delivered: null })
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  return NextResponse.json({ ok: true })
+}
+
 export async function PATCH(req: NextRequest) {
   const body = await req.json()
   const supabase = createAdminClient()
 
-  // Modificar item individual (cantidad pedida o entregada)
   if (body.type === 'item') {
-    const { item_id, qty_requested, qty_delivered } = body
-    const update: Record<string, number> = {}
+    const { item_id, qty_requested, qty_delivered, observation } = body
+    const update: Record<string, unknown> = {}
     if (qty_requested !== undefined) update.qty_requested = qty_requested
     if (qty_delivered !== undefined) update.qty_delivered = qty_delivered
+    if (observation  !== undefined) update.observation   = observation
     const { error } = await supabase.from('kitchen_order_items').update(update).eq('id', item_id)
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
     return NextResponse.json({ ok: true })
   }
 
-  // Modificar precio de producto (en este pedido, en tabla de productos, y pedidos futuros)
+  if (body.type === 'date') {
+    const { order_id, delivery_date } = body
+    const { error } = await supabase.from('kitchen_orders').update({ delivery_date }).eq('id', order_id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    return NextResponse.json({ ok: true })
+  }
+
   if (body.type === 'price') {
-    const { product_id, new_price, order_date } = body
-    // 1. Actualizar tabla de productos
+    const { product_id, new_price } = body
     await supabase.from('kitchen_products').update({ price: new_price }).eq('id', product_id)
-    // 2. Pedidos anteriores NO se tocan — ya están registrados
     return NextResponse.json({ ok: true })
   }
 
@@ -64,10 +75,21 @@ export async function PATCH(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   const { searchParams } = new URL(req.url)
-  const id = searchParams.get('id')
-  if (!id) return NextResponse.json({ error: 'id requerido' }, { status: 400 })
+  const id      = searchParams.get('id')
+  const item_id = searchParams.get('item_id')
   const supabase = createAdminClient()
-  const { error } = await supabase.from('kitchen_orders').delete().eq('id', id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  return NextResponse.json({ ok: true })
+
+  if (item_id) {
+    const { error } = await supabase.from('kitchen_order_items').delete().eq('id', item_id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    return NextResponse.json({ ok: true })
+  }
+
+  if (id) {
+    const { error } = await supabase.from('kitchen_orders').delete().eq('id', id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    return NextResponse.json({ ok: true })
+  }
+
+  return NextResponse.json({ error: 'id requerido' }, { status: 400 })
 }
