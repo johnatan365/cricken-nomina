@@ -27,6 +27,7 @@ type CashRegister = {
   next_base: number
   difference: number
   difference_note: string | null
+  supplier_payments: {description: string; amount: string}[]
   submitted_at: string
 }
 
@@ -37,6 +38,7 @@ type DifferenceRequest = {
   register_date: string
   difference: number
   difference_note: string | null
+  supplier_payments: {description: string; amount: string}[]
   total_real_sales: number
   expected_cash: number
   cash_counted: number
@@ -422,7 +424,8 @@ export default function AdminCierreCajaPage() {
                         ['Total ventas real',  r.total_real_sales],
                         ['Efectivo esperado',  r.expected_cash],
                         ['Efectivo contado',   r.cash_counted],
-                        ['Entregado en sobre', r.cash_to_owner],
+                        ['Dejado en caja (base)', r.next_base],
+                        ['Entregado en sobre',   r.cash_to_owner],
                       ] as [string, number][]).map(([label, value]) => (
                         <div key={label} className="bg-white/5 rounded-xl px-3 py-2">
                           <p className="text-white/40 text-xs">{label}</p>
@@ -430,6 +433,19 @@ export default function AdminCierreCajaPage() {
                         </div>
                       ))}
                     </div>
+
+                    {/* Detalle proveedores */}
+                    {r.supplier_payments && Array.isArray(r.supplier_payments) && r.supplier_payments.length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-white/40 text-xs font-semibold">Pagos a proveedores</p>
+                        {r.supplier_payments.map((s: {description: string; amount: string}, i: number) => (
+                          <div key={i} className="flex justify-between items-center bg-white/5 rounded-xl px-3 py-2">
+                            <span className="text-white/70 text-xs">{s.description}</span>
+                            <span className="text-red-300 text-xs font-bold">−{cop(parseFloat(s.amount) || 0)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
                     {/* Editor base siguiente día */}
                     <div className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-400/20 rounded-2xl px-4 py-3">
