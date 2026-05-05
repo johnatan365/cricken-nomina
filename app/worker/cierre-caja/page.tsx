@@ -147,12 +147,23 @@ export default function CierreCajaPage() {
     (difference > 0 && difference >= 10000)
   )
 
-  // Cargar borrador
+  // Cargar borrador — solo cuando los datos del servidor ya cargaron y baseIsLocked está definido
   useEffect(() => {
+    if (!dataLoaded) return  // esperar que loadData() termine y baseIsLocked esté correcto
     const d = loadDraft()
     if (!d) return
+    // Verificar datos reales antes de mostrar modal
+    const hasReal = (
+      d.billCounts?.some((b: {quantity: string}) => b.quantity && b.quantity !== '0' && b.quantity !== '') ||
+      d.puveTransfers?.some((t: {amount: string}) => t.amount && t.amount !== '') ||
+      d.didiOrders?.length > 0 ||
+      d.whatsappOrders?.length > 0 ||
+      d.supplierPayments?.length > 0 ||
+      (d.puveTotalReported && d.puveTotalReported !== '')
+    )
+    if (!hasReal) { clearDraft(); return }
     if (d.shift)              setShift(d.shift)
-    if (d.openingFund)        setOpeningFund(d.openingFund)
+    // openingFund NO se restaura del borrador — siempre viene del servidor
     if (d.puveTotalReported)  setPuveTotalReported(d.puveTotalReported)
     if (d.billCounts)         setBillCounts(d.billCounts)
     if (d.puveTransfers)      setPuveTransfers(d.puveTransfers)
@@ -162,7 +173,7 @@ export default function CierreCajaPage() {
     if (d.cashToOwner)        setCashToOwner(d.cashToOwner)
     if (d.differenceNote)     setDifferenceNote(d.differenceNote)
     setDraftRestored(true)
-  }, [])
+  }, [dataLoaded])
 
   // Autosave
   useEffect(() => {
@@ -231,12 +242,14 @@ export default function CierreCajaPage() {
   }
 
   function resetForm() {
-    setShift('morning'); setOpeningFund(''); setPuveTotalReported('')
+    setShift('morning'); setPuveTotalReported('')
     setBillCounts(BILL_DENOMINATIONS.map(d => ({ denomination: d, quantity: '' })))
     setPuveTransfers([{ amount: '' }])
     setDidiOrders([]); setWhatsappOrders([])
     setCashToOwner(''); setDifferenceNote('')
-    setDraftRestored(false); setBaseIsLocked(false); clearDraft()
+    setDraftRestored(false); clearDraft()
+    // Recargar base del servidor — NO tocar baseIsLocked manualmente
+    loadData()
   }
 
   // ── Handlers Enter ──
