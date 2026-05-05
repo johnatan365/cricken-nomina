@@ -257,12 +257,7 @@ export default function PedidoPage() {
                   const delivered = parseFloat(deliveries[p.id] || '0') || 0
                   const requested = orderedQtyMap[p.id]
 
-                  const borderColor =
-                    status === 'ok'          ? 'border-emerald-400/30' :
-                    status === 'diff'        ? 'border-red-400/40' :
-                    status === 'not-ordered' ? 'border-yellow-400/40' :
-                    status === 'missing'     ? 'border-orange-400/40' :
-                    'border-white/10'
+                  const borderColor = 'border-white/10'
 
                   const needsObs = status === 'diff' || status === 'not-ordered'
 
@@ -284,13 +279,7 @@ export default function PedidoPage() {
                           onChange={e => setDeliveries(prev => ({ ...prev, [p.id]: e.target.value }))}
                           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); delRefs.current[i + 1]?.focus() } }}
                           placeholder="Cant."
-                          className={`w-20 text-center rounded-xl px-2 py-2 text-sm font-bold focus:outline-none transition-all border ${
-                            status === 'ok'          ? 'bg-emerald-500/20 border-emerald-400/30 text-emerald-300' :
-                            status === 'diff'        ? 'bg-red-500/20 border-red-400/40 text-red-300' :
-                            status === 'not-ordered' ? 'bg-yellow-400/20 border-yellow-400/40 text-yellow-300' :
-                            status === 'missing'     ? 'bg-orange-500/20 border-orange-400/30 text-orange-300' :
-                            'bg-white/10 border-white/15 text-white'
-                          }`} />
+                          className="w-20 text-center rounded-xl px-2 py-2 text-sm font-bold focus:outline-none transition-all border bg-white/10 border-white/15 text-white" />
                       </div>
 
                       {hint && (
