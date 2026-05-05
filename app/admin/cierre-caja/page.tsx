@@ -547,7 +547,7 @@ export default function AdminCierreCajaPage() {
           <div className="w-full max-w-sm mx-4 bg-purple-900 rounded-3xl border border-white/20 p-5 space-y-3"
             onClick={e => e.stopPropagation()}>
             <p className="text-white font-bold text-sm">{detailModal.title}</p>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 overflow-y-auto" style={{ maxHeight: '50vh' }}>
               {detailModal.items.length === 0 ? (
                 <p className="text-white/40 text-xs text-center py-3">Sin registros</p>
               ) : detailModal.items.map((item, i) => (
