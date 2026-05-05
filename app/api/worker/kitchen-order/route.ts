@@ -80,18 +80,15 @@ export async function POST(req: NextRequest) {
 
   if (orderItems.length > 0) await supabase.from('kitchen_order_items').insert(orderItems)
 
-  const apiKey = process.env.CALLMEBOT_API_KEY || ''
-  if (apiKey) {
-    const lines = items
-      .filter((i: {qty_requested: number}) => i.qty_requested > 0)
-      .map((i: {name: string; qty_requested: number}) => `• ${i.name}: ${i.qty_requested}`)
-      .join('\n')
-    const msg = encodeURIComponent(`🛒 *Pedido Cricken*\n📅 Entrega: ${delivery_date}\n\n${lines}`)
-    await fetch(`https://api.callmebot.com/whatsapp.php?phone=573192099123&text=${msg}&apikey=${apiKey}`).catch(() => {})
-    await supabase.from('kitchen_orders').update({ whatsapp_sent: true }).eq('id', order.id)
-  }
+  // Generar link wa.me con el pedido completo
+  const lines = items
+    .filter((i: {qty_requested: number}) => i.qty_requested > 0)
+    .map((i: {name: string; qty_requested: number}) => `• ${i.name}: ${i.qty_requested}`)
+    .join('\n')
+  const msg     = `🛒 *Pedido Cricken*\n📅 Entrega: ${delivery_date}\n\n${lines}`
+  const waLink  = `https://wa.me/573192099123?text=${encodeURIComponent(msg)}`
 
-  return NextResponse.json({ ok: true, order })
+  return NextResponse.json({ ok: true, order, waLink })
 }
 
 export async function PATCH(req: NextRequest) {
