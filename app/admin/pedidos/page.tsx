@@ -5,7 +5,7 @@ import { es } from 'date-fns/locale'
 
 type Product = { id: string; name: string; price: number; supplier: string; is_active: boolean; sort_order: number }
 type OrderItem = { id: string; product_id: string; qty_requested: number; qty_delivered: number | null; observation: string | null; price_override: number | null; product: Product }
-type Order = { id: string; delivery_date: string; status: string; whatsapp_sent: boolean; worker: { full_name: string }; items: OrderItem[] }
+type Order = { id: string; delivery_date: string; status: string; whatsapp_sent: boolean; worker: { full_name: string }; delivered_by_worker: { full_name: string } | null; items: OrderItem[] }
 
 const cop = (v: number) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(v || 0)
 
@@ -84,7 +84,7 @@ export default function AdminPedidosPage() {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         // update_product=true actualiza la tabla de productos (futuros pedidos)
         // item_id guarda price_override solo en este item (no afecta pedidos anteriores)
-        body: JSON.stringify({ type: 'price', product_id: item.product_id, new_price: parseFloat(edit.price) || 0, item_id: itemId, update_product: true }),
+        body: JSON.stringify({ type: 'price', product_id: item.product_id, new_price: parseFloat(edit.price) || 0, item_id: itemId, update_product: true, order_date: orders.find(o => o.items.some(i => i.id === itemId))?.delivery_date }),
       })
     }
     const newE = { ...editingItem }; delete newE[itemId]
@@ -276,10 +276,13 @@ export default function AdminPedidosPage() {
                       )}
                     </div>
                     <p className="text-muted text-xs mt-0.5">
-                      👤 {order.worker?.full_name} ·{' '}
+                      📋 {order.worker?.full_name} ·{' '}
                       <span className={order.status === 'delivered' ? 'text-emerald-400' : 'text-yellow-400'}>
                         {order.status === 'delivered' ? '✓ Entregado' : '⏳ Pendiente'}
                       </span>
+                      {order.status === 'delivered' && order.delivered_by_worker && (
+                        <span className="text-white/40"> · 📦 {order.delivered_by_worker.full_name}</span>
+                      )}
                     </p>
                   </div>
                   <div className="flex items-center gap-3">

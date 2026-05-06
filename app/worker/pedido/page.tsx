@@ -25,33 +25,9 @@ export default function PedidoPage() {
   const qtyRefs = useRef<(HTMLInputElement | null)[]>([])
   const delRefs = useRef<(HTMLInputElement | null)[]>([])
   const DRAFT_KEY = 'pedido_draft_kitchen'
+  const [draftLoaded, setDraftLoaded] = useState(false)
 
-  // Guardar draft en localStorage — siempre, incluyendo valores 0 y vacíos
-  useEffect(() => {
-    if (Object.keys(quantities).length > 0) {
-      localStorage.setItem(DRAFT_KEY + '_qty', JSON.stringify(quantities))
-    } else {
-      localStorage.removeItem(DRAFT_KEY + '_qty')
-    }
-  }, [quantities])
-
-  useEffect(() => {
-    if (Object.keys(deliveries).length > 0) {
-      localStorage.setItem(DRAFT_KEY + '_del', JSON.stringify(deliveries))
-    } else {
-      localStorage.removeItem(DRAFT_KEY + '_del')
-    }
-  }, [deliveries])
-
-  useEffect(() => {
-    if (Object.keys(observations).length > 0) {
-      localStorage.setItem(DRAFT_KEY + '_obs', JSON.stringify(observations))
-    } else {
-      localStorage.removeItem(DRAFT_KEY + '_obs')
-    }
-  }, [observations])
-
-  // Restaurar draft al cargar
+  // Restaurar draft al cargar — PRIMERO
   useEffect(() => {
     try {
       const qty = localStorage.getItem(DRAFT_KEY + '_qty')
@@ -61,7 +37,36 @@ export default function PedidoPage() {
       if (del) setDeliveries(JSON.parse(del))
       if (obs) setObservations(JSON.parse(obs))
     } catch {}
+    setDraftLoaded(true)
   }, [])
+
+  // Guardar draft — solo después de restaurar para no borrar datos
+  useEffect(() => {
+    if (!draftLoaded) return
+    if (Object.keys(quantities).length > 0) {
+      localStorage.setItem(DRAFT_KEY + '_qty', JSON.stringify(quantities))
+    } else {
+      localStorage.removeItem(DRAFT_KEY + '_qty')
+    }
+  }, [quantities, draftLoaded])
+
+  useEffect(() => {
+    if (!draftLoaded) return
+    if (Object.keys(deliveries).length > 0) {
+      localStorage.setItem(DRAFT_KEY + '_del', JSON.stringify(deliveries))
+    } else {
+      localStorage.removeItem(DRAFT_KEY + '_del')
+    }
+  }, [deliveries, draftLoaded])
+
+  useEffect(() => {
+    if (!draftLoaded) return
+    if (Object.keys(observations).length > 0) {
+      localStorage.setItem(DRAFT_KEY + '_obs', JSON.stringify(observations))
+    } else {
+      localStorage.removeItem(DRAFT_KEY + '_obs')
+    }
+  }, [observations, draftLoaded])
 
   const showModal = (type: 'success'|'error'|'confirm'|'missing', text: string, extra?: { items?: {name: string; pid: string}[]; onConfirm?: () => void }) =>
     setModal({ type, text, ...extra })
@@ -112,12 +117,13 @@ export default function PedidoPage() {
         const json = await res.json()
         setSaving(false)
         if (!res.ok) { showModal('error', json.error || 'Error al enviar'); return }
-        // Abrir WhatsApp con el pedido listo para enviar
         if (json.waLink) window.open(json.waLink, '_blank')
         localStorage.removeItem(DRAFT_KEY + '_qty')
         setQuantities({})
-        showModal('success', '✅ Pedido listo — confirma el envío en WhatsApp', {
-          onConfirm: () => { setModal(null); loadData() }
+        await loadData()
+        setTab('delivery')
+        showModal('success', '✅ Pedido enviado. Cuando llegue confirma la entrega aquí.', {
+          onConfirm: () => setModal(null)
         })
       }}
     )

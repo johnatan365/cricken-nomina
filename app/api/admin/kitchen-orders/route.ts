@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
 
   let q = supabase
     .from('kitchen_orders')
-    .select('*, worker:workers!kitchen_orders_worker_id_fkey(full_name), items:kitchen_order_items(*, product:kitchen_products(*))')
+    .select('*, worker:workers(full_name), items:kitchen_order_items(*, product:kitchen_products(*))')
     .eq('order_type', order_type)
     .order('delivery_date', { ascending: false })
 

@@ -98,7 +98,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const { order_id, deliveries } = await req.json()
+  const body_patch = await req.json()
+  const { order_id, deliveries, delivered_by } = body_patch
   const supabase = createAdminClient()
 
   for (const d of deliveries) {
@@ -110,6 +111,6 @@ export async function PATCH(req: NextRequest) {
       .eq('product_id', d.product_id)
   }
 
-  await supabase.from('kitchen_orders').update({ status: 'delivered' }).eq('id', order_id)
+  await supabase.from('kitchen_orders').update({ status: 'delivered', ...(delivered_by ? { delivered_by } : {}) }).eq('id', order_id)
   return NextResponse.json({ ok: true })
 }
