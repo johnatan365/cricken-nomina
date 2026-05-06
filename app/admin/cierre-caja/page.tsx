@@ -88,6 +88,12 @@ export default function AdminCierreCajaPage() {
   const [deletingId, setDeletingId]   = useState<string | null>(null)
 
   const editingBase = editingBaseRef.current
+  const [detailModal, setDetailModal] = useState<{
+    title: string
+    items: {label: string; value: number}[]
+    total: number
+    danger?: boolean
+  } | null>(null)
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -374,8 +380,8 @@ export default function AdminCierreCajaPage() {
                   setExpanded(next)
                 }}>
 
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0 flex items-center gap-3">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                  <div className="flex items-center gap-3 min-w-0">
                     <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 ${hasIssue ? 'bg-red-500/30 text-red-300' : 'bg-purple-500/40 text-white'}`}>
                       {r.worker_name?.charAt(0)?.toUpperCase() || '?'}
                     </div>
@@ -389,21 +395,21 @@ export default function AdminCierreCajaPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 flex-shrink-0">
+                  <div className="flex items-center justify-between md:justify-end gap-2 flex-shrink-0">
                     <div className="text-right">
-                      <p className="text-white/40 text-xs">Entregado en sobre</p>
+                      <p className="text-white/40 text-xs">Sobre</p>
                       <p className="text-yellow-400 font-bold text-sm">{cop(r.cash_to_owner)}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-white/40 text-xs">Ventas reales</p>
+                      <p className="text-white/40 text-xs">Ventas</p>
                       <p className="text-white font-bold text-sm">{cop(r.total_real_sales)}</p>
                     </div>
                     {hasIssue ? (
-                      <span className="text-xs px-2 py-1 rounded-full bg-red-500/25 text-red-300 font-bold border border-red-400/30">
+                      <span className="text-xs px-2 py-1 rounded-full bg-red-500/25 text-red-300 font-bold border border-red-400/30 whitespace-nowrap">
                         ⚠ {r.difference > 0 ? '+' : ''}{cop(r.difference)}
                       </span>
                     ) : (
-                      <span className="text-xs px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-300 font-bold">✓ Cuadrado</span>
+                      <span className="text-xs px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-300 font-bold whitespace-nowrap">✓ OK</span>
                     )}
                     <span className="text-white/30 text-xs">{expanded === r.id ? '▲' : '▼'}</span>
                   </div>
@@ -416,36 +422,52 @@ export default function AdminCierreCajaPage() {
                         ['Base recibida',      r.opening_fund],
                         ['Total ventas Puve',  r.puve_total_reported ?? 0],
                         ['Puve efectivo',      r.puve_cash],
-                        ['Transferencias',     r.puve_transfer],
-                        ['Didi efectivo',      r.didi_cash_total],
-                        ['Didi transf.',       r.didi_transfer_total],
-                        ['WhatsApp',           r.whatsapp_total],
-                        ['Proveedores (−)',    r.supplier_total],
                         ['Total ventas real',  r.total_real_sales],
                         ['Efectivo esperado',  r.expected_cash],
                         ['Efectivo contado',   r.cash_counted],
-                        ['Dejado en caja (base)', r.next_base],
-                        ['Entregado en sobre',   r.cash_to_owner],
+                        ['Entregado en sobre', r.cash_to_owner],
+                        ['Dejado en caja',     r.next_base],
                       ] as [string, number][]).map(([label, value]) => (
                         <div key={label} className="bg-white/5 rounded-xl px-3 py-2">
                           <p className="text-white/40 text-xs">{label}</p>
                           <p className="text-white font-bold text-sm">{cop(Number(value))}</p>
                         </div>
                       ))}
+
+                      {/* Transferencias — modal */}
+                      <div className="bg-white/5 rounded-xl px-3 py-2 cursor-pointer hover:bg-white/10 transition-all"
+                        onClick={e => { e.stopPropagation(); setDetailModal({ title: 'Transferencias Puve', items: ((r as any).puve_transfers || []).map((t: {amount: string}, i: number) => ({ label: `Transferencia ${i+1}`, value: parseFloat(t.amount) || 0 })), total: r.puve_transfer }) }}>
+                        <p className="text-white/40 text-xs">Transferencias</p>
+                        <p className="text-white font-bold text-sm">{cop(r.puve_transfer)}</p>
+                        <p className="text-blue-400 text-xs mt-0.5">Ver detalle →</p>
+                      </div>
+
+                      {/* Didi — modal */}
+                      <div className="bg-white/5 rounded-xl px-3 py-2 cursor-pointer hover:bg-white/10 transition-all"
+                        onClick={e => { e.stopPropagation(); setDetailModal({ title: 'Pedidos Didi', items: ((r as any).didi_orders || []).map((o: {order_id: string; cash: string; transfers: {amount: string}[]}, i: number) => ({ label: `Pedido #${o.order_id || i+1}`, value: (parseFloat(o.cash) || 0) + (o.transfers || []).reduce((s: number, t: {amount: string}) => s + (parseFloat(t.amount) || 0), 0) })), total: r.didi_cash_total + r.didi_transfer_total }) }}>
+                        <p className="text-white/40 text-xs">Didi efectivo + transf.</p>
+                        <p className="text-white font-bold text-sm">{cop(r.didi_cash_total + r.didi_transfer_total)}</p>
+                        <p className="text-blue-400 text-xs mt-0.5">Ver detalle →</p>
+                      </div>
+
+                      {/* WhatsApp — modal */}
+                      <div className="bg-white/5 rounded-xl px-3 py-2 cursor-pointer hover:bg-white/10 transition-all"
+                        onClick={e => { e.stopPropagation(); setDetailModal({ title: 'Pedidos WhatsApp', items: ((r as any).whatsapp_orders || []).map((o: {amount: string}, i: number) => ({ label: `Pedido ${i+1}`, value: parseFloat(o.amount) || 0 })), total: r.whatsapp_total }) }}>
+                        <p className="text-white/40 text-xs">WhatsApp</p>
+                        <p className="text-white font-bold text-sm">{cop(r.whatsapp_total)}</p>
+                        <p className="text-blue-400 text-xs mt-0.5">Ver detalle →</p>
+                      </div>
+
+                      {/* Proveedores — modal */}
+                      <div className="bg-white/5 rounded-xl px-3 py-2 cursor-pointer hover:bg-white/10 transition-all"
+                        onClick={e => { e.stopPropagation(); setDetailModal({ title: 'Pagos a proveedores', items: ((r as any).supplier_payments || []).map((s: {description: string; amount: string}) => ({ label: s.description, value: parseFloat(s.amount) || 0 })), total: r.supplier_total, danger: true }) }}>
+                        <p className="text-white/40 text-xs">Proveedores (−)</p>
+                        <p className="text-red-300 font-bold text-sm">{cop(r.supplier_total)}</p>
+                        <p className="text-blue-400 text-xs mt-0.5">Ver detalle →</p>
+                      </div>
                     </div>
 
-                    {/* Detalle proveedores */}
-                    {r.supplier_payments && Array.isArray(r.supplier_payments) && r.supplier_payments.length > 0 && (
-                      <div className="space-y-1">
-                        <p className="text-white/40 text-xs font-semibold">Pagos a proveedores</p>
-                        {r.supplier_payments.map((s: {description: string; amount: string}, i: number) => (
-                          <div key={i} className="flex justify-between items-center bg-white/5 rounded-xl px-3 py-2">
-                            <span className="text-white/70 text-xs">{s.description}</span>
-                            <span className="text-red-300 text-xs font-bold">−{cop(parseFloat(s.amount) || 0)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+
 
                     {/* Editor base siguiente día */}
                     <div className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-400/20 rounded-2xl px-4 py-3">
@@ -501,6 +523,37 @@ export default function AdminCierreCajaPage() {
               </div>
             )
           })}
+        </div>
+      )}
+      {detailModal !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
+          onClick={() => setDetailModal(null)}>
+          <div className="w-full max-w-sm bg-purple-900 rounded-3xl border border-white/20 p-5 space-y-3"
+            onClick={e => e.stopPropagation()}>
+            <p className="text-white font-bold text-sm">{detailModal.title}</p>
+            <div className="space-y-1.5 overflow-y-auto" style={{ maxHeight: '50vh' }}>
+              {detailModal.items.length === 0 ? (
+                <p className="text-white/40 text-xs text-center py-3">Sin registros</p>
+              ) : detailModal.items.map((item, i) => (
+                <div key={i} className="flex justify-between items-center bg-white/5 rounded-xl px-3 py-2">
+                  <span className="text-white/70 text-xs flex-1 pr-2">{item.label}</span>
+                  <span className={`text-xs font-bold ${detailModal.danger ? 'text-red-300' : 'text-white'}`}>
+                    {detailModal.danger ? '−' : ''}{cop(item.value)}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-between items-center border-t border-white/15 pt-2">
+              <span className="text-white/60 text-xs font-semibold">Total</span>
+              <span className={`text-sm font-bold ${detailModal.danger ? 'text-red-300' : 'text-white'}`}>
+                {detailModal.danger ? '−' : ''}{cop(detailModal.total)}
+              </span>
+            </div>
+            <button onClick={() => setDetailModal(null)}
+              className="w-full py-2 rounded-xl text-xs font-bold bg-white/10 text-white">
+              Cerrar
+            </button>
+          </div>
         </div>
       )}
     </div>
