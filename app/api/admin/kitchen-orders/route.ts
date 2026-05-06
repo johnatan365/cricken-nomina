@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
 
   let q = supabase
     .from('kitchen_orders')
-    .select('*, worker:workers(full_name), items:kitchen_order_items(*, product:kitchen_products(*))')
+    .select('*, worker:workers!kitchen_orders_worker_id_fkey(full_name), items:kitchen_order_items(*, product:kitchen_products(*))')
     .eq('order_type', order_type)
     .order('delivery_date', { ascending: false })
 
@@ -68,14 +68,30 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (body.type === 'price') {
-    const { product_id, new_price, item_id, update_product } = body
-    // Si se pide actualizar el producto base también
+    const { product_id, new_price, item_id, update_product, order_date } = body
+    // 1. Guardar price_override solo en este item
+    if (item_id) {
+      await supabase.from('kitchen_order_items').update({ price_override: new_price }).eq('id', item_id)
+    }
+    // 2. Actualizar tabla de productos (futuros pedidos)
     if (update_product) {
       await supabase.from('kitchen_products').update({ price: new_price }).eq('id', product_id)
     }
-    // Guardar precio override en el item específico (no afecta otros pedidos)
-    if (item_id) {
-      await supabase.from('kitchen_order_items').update({ price_override: new_price }).eq('id', item_id)
+    // 3. Actualizar price_override en pedidos POSTERIORES a order_date (no anteriores)
+    if (order_date && product_id) {
+      const { data: futureItems } = await supabase
+        .from('kitchen_order_items')
+        .select('id, order_id, kitchen_orders!inner(delivery_date)')
+        .eq('product_id', product_id)
+        .neq('id', item_id || '')
+      if (futureItems) {
+        for (const fi of futureItems) {
+          const orderDeliveryDate = (fi as any).kitchen_orders?.delivery_date
+          if (orderDeliveryDate && orderDeliveryDate > order_date) {
+            await supabase.from('kitchen_order_items').update({ price_override: new_price }).eq('id', fi.id)
+          }
+        }
+      }
     }
     return NextResponse.json({ ok: true })
   }
