@@ -157,10 +157,12 @@ export async function POST(req: NextRequest) {
     const puveTr   = n(puve_transfer)
     const openFund = n(opening_fund)
     const cashCnt     = n(cash_counted)
-    // Trabajador ingresa la BASE que deja en caja (campo cash_to_owner)
-    // El sobre = efectivo contado - base
-    const nextBaseVal = n(cash_to_owner)       // base que deja en caja
-    const cashOwn     = cashCnt - nextBaseVal  // sobre = efectivo - base
+    // El worker envía:
+    //   cash_to_owner = el sobre (efectivo - base)
+    //   next_base     = la base que deja en caja
+    // Usar directamente sin recalcular
+    const cashOwn     = n(cash_to_owner)   // sobre
+    const nextBaseVal = n(next_base)        // base que deja
 
     const totalSales  = puveRep + dCash + dTrans + wTotal - cTotal
     const expCash     = openFund + puveCash + dCash + wTotal - sTotal
