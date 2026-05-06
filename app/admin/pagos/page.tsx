@@ -26,6 +26,7 @@ export default function PagosPage() {
 
   // Estados proveedores
   const [suppLoading, setSuppLoading]   = useState(false)
+  const [suppFilter, setSuppFilter]     = useState('Brisas')
   const [suppDateFrom, setSuppDateFrom] = useState(() => {
     const d = new Date(); d.setDate(1); return d.toISOString().split('T')[0]
   })
@@ -204,7 +205,7 @@ export default function PagosPage() {
 
       {loading ? (
         <div className="text-center py-10 text-white/40">Cargando...</div>
-      ) : activeTab === 'registrar' ? (
+      ) : activeTab === 'proveedores' ? null : activeTab === 'registrar' ? (
         <div className="space-y-4">
           {workers.length === 0 ? (
             <div className="text-center py-12 bg-white/5 rounded-3xl border border-white/10">
@@ -386,9 +387,15 @@ export default function PagosPage() {
           )}
 
           {/* Filtros */}
-          <div className="card grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="card grid grid-cols-1 md:grid-cols-3 gap-3">
             <div><label className="label">Desde</label><input type="date" value={suppDateFrom} onChange={e => setSuppDateFrom(e.target.value)} className="input-field" /></div>
             <div><label className="label">Hasta</label><input type="date" value={suppDateTo} onChange={e => setSuppDateTo(e.target.value)} className="input-field" /></div>
+            <div><label className="label">Proveedor</label>
+              <select value={suppFilter} onChange={e => setSuppFilter(e.target.value)} className="input-field">
+                <option value="all">Todos</option>
+                {Object.keys(suppDebts).map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
           </div>
 
           {/* Resumen totales */}
@@ -407,7 +414,9 @@ export default function PagosPage() {
           {/* Deudas por proveedor */}
           {suppLoading ? <div className="card text-center py-8"><p className="text-white/40">Cargando...</p></div>
           : Object.keys(suppDebts).length === 0 ? <div className="card text-center py-8"><p className="text-white/40">No hay pedidos entregados en este período</p></div>
-          : Object.entries(suppDebts).map(([supplier, debt]) => (
+          : Object.entries(suppDebts)
+            .filter(([supplier]) => suppFilter === 'all' || supplier === suppFilter)
+            .map(([supplier, debt]) => (
             <div key={supplier} className="card space-y-3">
               <p className="text-white font-bold text-sm">{supplier}</p>
               <div className="grid grid-cols-2 gap-2">
