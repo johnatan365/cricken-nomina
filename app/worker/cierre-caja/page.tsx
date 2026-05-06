@@ -112,6 +112,10 @@ export default function CierreCajaPage() {
   const didiCashRefs     = useRef<(HTMLInputElement | null)[]>([])
 
   // ── CÁLCULOS ──────────────────────────────────────────────
+  const [selectedBills, setSelectedBills] = useState<Record<number, boolean>>({})
+
+  const selectedSubtotal = billCounts.reduce((s, b) =>
+    selectedBills[b.denomination] ? s + b.denomination * n(b.quantity) : s, 0)
   const cashCounted    = billCounts.reduce((s, b) => s + b.denomination * n(b.quantity), 0)
   const puveTransTotal = puveTransfers.reduce((s, t) => s + n(t.amount), 0)
   const didiCash       = didiOrders.reduce((s, o) => s + n(o.cash), 0)
@@ -568,7 +572,12 @@ export default function CierreCajaPage() {
                 </div>
                 {billCounts.map((b, i) => (
                   <div key={b.denomination} className="grid grid-cols-3 gap-1 items-center">
-                    <span className="text-white/70 text-xs">{cop(b.denomination)}</span>
+                    <button
+                      onClick={() => setSelectedBills(prev => ({ ...prev, [b.denomination]: !prev[b.denomination] }))}
+                      className={`text-xs text-left flex items-center gap-1.5 transition-all ${selectedBills[b.denomination] ? 'text-yellow-300' : 'text-white/70'}`}>
+                      <span className={`w-3.5 h-3.5 rounded flex-shrink-0 border transition-all ${selectedBills[b.denomination] ? 'bg-yellow-400 border-yellow-400' : 'border-white/30 bg-white/10'}`} />
+                      {cop(b.denomination)}
+                    </button>
                     <input
                       ref={el => { billRefs.current[i] = el }}
                       type="number" min="0" value={b.quantity}
@@ -580,6 +589,19 @@ export default function CierreCajaPage() {
                     </span>
                   </div>
                 ))}
+                {Object.values(selectedBills).some(v => v) && (
+                  <div className="bg-yellow-400/10 border border-yellow-400/25 rounded-xl px-3 py-2 mt-1 flex items-center justify-between gap-2">
+                    <div>
+                      <p className="text-yellow-300/70 text-xs">Subtotal seleccionados</p>
+                      <p className="text-yellow-400 font-bold text-sm">{cop(selectedSubtotal)}</p>
+                    </div>
+                    <button
+                      onClick={() => setCashToOwner(String(selectedSubtotal))}
+                      className="text-xs font-bold bg-yellow-400 text-purple-900 px-3 py-1.5 rounded-lg whitespace-nowrap hover:bg-yellow-300 transition-all">
+                      Usar como base →
+                    </button>
+                  </div>
+                )}
                 <div className="border-t border-white/15 mt-1 pt-2">
                   <Row label="Total efectivo" value={cashCounted} color="text-yellow-400" bold />
                 </div>
