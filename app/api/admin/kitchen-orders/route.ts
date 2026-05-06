@@ -3,141 +3,120 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
+function getDeliveryDate(): string {
+  // 12am-1:59pm → mismo día
+  // 2pm-11:59pm → día siguiente
+  const now    = new Date()
+  const bogota = new Date(now.getTime() - 5 * 60 * 60 * 1000)
+  const hour   = bogota.getUTCHours()
+  const target = hour < 14
+    ? bogota                                               // antes de las 2pm → mismo día
+    : new Date(bogota.getTime() + 24 * 60 * 60 * 1000)   // 2pm en adelante → día siguiente
+  const yyyy = target.getUTCFullYear()
+  const mm   = String(target.getUTCMonth() + 1).padStart(2, '0')
+  const dd   = String(target.getUTCDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
-  const date_from = searchParams.get('date_from')
-  const date_to   = searchParams.get('date_to')
-  const supplier  = searchParams.get('supplier')
-  const supabase  = createAdminClient()
+  const worker_id = searchParams.get('worker_id')
+  if (!worker_id) return NextResponse.json({ error: 'worker_id requerido' }, { status: 400 })
 
-  const order_type = searchParams.get('order_type') || 'kitchen'
+  const supabase     = createAdminClient()
+  const deliveryDate = getDeliveryDate()
 
-  let q = supabase
+  const orderType = searchParams.get('order_type') || 'kitchen'
+
+  // Buscar pedido pending sin confirmar (cualquier fecha)
+  const { data: pendingOrder } = await supabase
     .from('kitchen_orders')
     .select('*, items:kitchen_order_items(*, product:kitchen_products(*))')
-    .eq('order_type', order_type)
+    .eq('status', 'pending')
+    .eq('order_type', orderType)
     .order('delivery_date', { ascending: false })
+    .limit(1)
+    .maybeSingle()
 
-  if (date_from) q = q.gte('delivery_date', date_from)
-  if (date_to)   q = q.lte('delivery_date', date_to)
+  const order = pendingOrder || null
+  const effectiveDeliveryDate = pendingOrder ? pendingOrder.delivery_date : deliveryDate
 
-  const { data, error } = await q.limit(100)
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  const { data: products } = await supabase
+    .from('kitchen_products')
+    .select('*')
+    .eq('is_active', true)
+    .eq('order_type', orderType)
+    .order('sort_order')
 
-  let orders = data || []
-
-  // Enriquecer con nombre del trabajador manualmente (evita ambigüedad de FK)
-  if (orders.length > 0) {
-    const workerIds = [...new Set(orders.map((o: any) => o.worker_id).filter(Boolean))]
-    const deliveredByIds = [...new Set(orders.map((o: any) => o.delivered_by).filter(Boolean))]
-    const allIds = [...new Set([...workerIds, ...deliveredByIds])]
-    
-    if (allIds.length > 0) {
-      const { data: workers } = await supabase.from('workers').select('id, full_name').in('id', allIds)
-      const workerMap = Object.fromEntries((workers || []).map((w: any) => [w.id, w.full_name]))
-      
-      orders = orders.map((o: any) => ({
-        ...o,
-        worker: { full_name: workerMap[o.worker_id] || 'Desconocido' },
-        delivered_by_worker: o.delivered_by ? { full_name: workerMap[o.delivered_by] || 'Desconocido' } : null,
-      }))
-    }
+  // Obtener nombre del worker sin join ambiguo
+  let workerName = ''
+  if (order?.worker_id) {
+    const { data: w } = await supabase.from('workers').select('full_name').eq('id', order.worker_id).single()
+    workerName = w?.full_name || ''
   }
 
-  if (supplier && supplier !== 'all') {
-    orders = orders.map((o: any) => ({
-      ...o,
-      items: (o.items || []).filter((i: {product: {supplier: string}}) => i.product?.supplier === supplier)
-    })).filter((o: any) => o.items.length > 0)
-  }
-
-  return NextResponse.json({ orders })
+  const orderWithName = order ? { ...order, worker_name: workerName } : null
+  return NextResponse.json({ order: orderWithName, products, deliveryDate: effectiveDeliveryDate })
 }
 
 export async function POST(req: NextRequest) {
-  // Agregar item a pedido existente
-  const { order_id, product_id, qty_requested } = await req.json()
+  const body_data = await req.json()
+  const { worker_id, items, delivery_date } = body_data
   const supabase = createAdminClient()
-  const { error } = await supabase.from('kitchen_order_items')
-    .insert({ order_id, product_id, qty_requested, qty_delivered: null })
+
+  // Solo bloquear si hay un pedido PENDING para esa fecha
+  const { data: existing } = await supabase
+    .from('kitchen_orders')
+    .select('id')
+    .eq('delivery_date', delivery_date)
+    .eq('status', 'pending')
+    .eq('order_type', body_data.order_type || 'kitchen')
+    .maybeSingle()
+
+  if (existing) return NextResponse.json({ error: 'Ya existe un pedido pendiente para ese día' }, { status: 409 })
+
+  const orderType = body_data.order_type || 'kitchen'
+  const { data: order, error } = await supabase
+    .from('kitchen_orders')
+    .insert({ worker_id, delivery_date, status: 'pending', order_type: orderType })
+    .select().single()
+
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  return NextResponse.json({ ok: true })
+
+  const orderItems = items
+    .filter((i: {qty_requested: number}) => i.qty_requested > 0)
+    .map((i: {product_id: string; qty_requested: number}) => ({
+      order_id: order.id, product_id: i.product_id, qty_requested: i.qty_requested,
+    }))
+
+  if (orderItems.length > 0) await supabase.from('kitchen_order_items').insert(orderItems)
+
+  // Generar link wa.me con el pedido completo
+  const orderLabel = (body_data.order_type || 'kitchen') === 'cash' ? 'Pedido Caja Cricken' : 'Pedido Cocina Cricken'
+  const lines = items
+    .filter((i: {qty_requested: number}) => i.qty_requested > 0)
+    .map((i: {name: string; qty_requested: number}) => `${i.qty_requested} - ${i.name}`)
+    .join('\n')
+  const msg    = `*${orderLabel}*\nEntrega: ${delivery_date}\n\n${lines}`
+  const waLink = `https://wa.me/573192099123?text=${encodeURIComponent(msg)}`
+
+  return NextResponse.json({ ok: true, order, waLink })
 }
 
 export async function PATCH(req: NextRequest) {
-  const body = await req.json()
+  const body_patch = await req.json()
+  const { order_id, deliveries, delivered_by } = body_patch
   const supabase = createAdminClient()
 
-  if (body.type === 'item') {
-    const { item_id, qty_requested, qty_delivered, observation } = body
-    const update: Record<string, unknown> = {}
-    if (qty_requested !== undefined) update.qty_requested = qty_requested
-    if (qty_delivered !== undefined) update.qty_delivered = qty_delivered
-    if (observation  !== undefined) update.observation   = observation
-    const { error } = await supabase.from('kitchen_order_items').update(update).eq('id', item_id)
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-    return NextResponse.json({ ok: true })
+  for (const d of deliveries) {
+    const update: Record<string, unknown> = { qty_delivered: d.qty_delivered }
+    if (d.observation !== undefined) update.observation = d.observation
+    await supabase.from('kitchen_order_items')
+      .update(update)
+      .eq('order_id', order_id)
+      .eq('product_id', d.product_id)
   }
 
-  if (body.type === 'date') {
-    const { order_id, delivery_date } = body
-    const { error } = await supabase.from('kitchen_orders').update({ delivery_date }).eq('id', order_id)
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-    return NextResponse.json({ ok: true })
-  }
-
-  if (body.type === 'price') {
-    const { product_id, new_price, item_id, update_product, order_date } = body
-    // 1. Guardar price_override solo en este item
-    if (item_id) {
-      await supabase.from('kitchen_order_items').update({ price_override: new_price }).eq('id', item_id)
-    }
-    // 2. Actualizar tabla de productos (futuros pedidos)
-    if (update_product) {
-      await supabase.from('kitchen_products').update({ price: new_price }).eq('id', product_id)
-    }
-    // 3. Actualizar price_override en pedidos POSTERIORES a order_date (no anteriores ni el mismo)
-    if (order_date && product_id) {
-      // Paso 1: obtener IDs de pedidos con fecha posterior
-      const { data: futureOrders } = await supabase
-        .from('kitchen_orders')
-        .select('id')
-        .gt('delivery_date', order_date)
-      
-      if (futureOrders && futureOrders.length > 0) {
-        const futureOrderIds = futureOrders.map((o: {id: string}) => o.id)
-        // Paso 2: actualizar items de esos pedidos para ese producto
-        await supabase
-          .from('kitchen_order_items')
-          .update({ price_override: new_price })
-          .eq('product_id', product_id)
-          .in('order_id', futureOrderIds)
-          .neq('id', item_id || '')
-      }
-    }
-    return NextResponse.json({ ok: true })
-  }
-
-  return NextResponse.json({ error: 'Tipo inválido' }, { status: 400 })
-}
-
-export async function DELETE(req: NextRequest) {
-  const { searchParams } = new URL(req.url)
-  const id      = searchParams.get('id')
-  const item_id = searchParams.get('item_id')
-  const supabase = createAdminClient()
-
-  if (item_id) {
-    const { error } = await supabase.from('kitchen_order_items').delete().eq('id', item_id)
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-    return NextResponse.json({ ok: true })
-  }
-
-  if (id) {
-    const { error } = await supabase.from('kitchen_orders').delete().eq('id', id)
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-    return NextResponse.json({ ok: true })
-  }
-
-  return NextResponse.json({ error: 'id requerido' }, { status: 400 })
+  await supabase.from('kitchen_orders').update({ status: 'delivered', ...(delivered_by ? { delivered_by } : {}) }).eq('id', order_id)
+  return NextResponse.json({ ok: true })
 }
