@@ -49,6 +49,37 @@ body {
   .label {
     @apply text-white/60 text-xs font-semibold uppercase tracking-wider mb-1 block;
   }
+
+  /* Responsive grid helpers */
+  .grid-responsive-4 {
+    @apply grid grid-cols-2 md:grid-cols-4 gap-2;
+  }
+  .grid-responsive-3 {
+    @apply grid grid-cols-1 md:grid-cols-3 gap-3;
+  }
+  .grid-responsive-2 {
+    @apply grid grid-cols-1 md:grid-cols-2 gap-3;
+  }
+
+  /* Cards en móvil más compactos */
+  .card {
+    @apply bg-white/5 border border-white/10 rounded-2xl p-4 md:p-5;
+  }
+
+  /* Texto en tablas más pequeño en móvil */
+  .table-text {
+    @apply text-xs md:text-sm;
+  }
+
+  /* Ocultar columnas en móvil */
+  .hide-mobile {
+    @apply hidden md:table-cell md:block;
+  }
+
+  /* Scroll horizontal en tablas en móvil */
+  .table-scroll {
+    @apply overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0;
+  }
   .page-title {
     @apply font-bold text-2xl text-white;
   }

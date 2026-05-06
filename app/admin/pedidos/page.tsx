@@ -321,7 +321,7 @@ export default function AdminPedidosPage() {
                             <p className="text-yellow-400 text-xs font-bold">{supplierTotal !== null ? cop(supplierTotal) : '—'}</p>
                           </div>
 
-                          <div className="grid grid-cols-7 gap-1 text-xs text-white/30 font-semibold px-2 mb-1">
+                          <div className="grid grid-cols-3 md:grid-cols-7 gap-1 text-xs text-white/30 font-semibold px-2 mb-1">
                             <span className="col-span-2">Producto</span>
                             <span className="text-center">Pedido</span>
                             <span className="text-center">Entregado</span>
@@ -338,7 +338,7 @@ export default function AdminPedidosPage() {
                               const isDirty = Object.keys(edit).length > 0
                               return (
                                 <div key={item.id} className="space-y-1">
-                                  <div className="grid grid-cols-7 gap-1 items-center bg-white/5 rounded-xl px-2 py-2">
+                                  <div className="grid grid-cols-3 md:grid-cols-7 gap-1 items-center bg-white/5 rounded-xl px-2 py-2">
                                     <span className="col-span-2 text-white text-xs leading-tight">{item.product?.name}</span>
                                     <input type="number" min="0"
                                       value={edit.qty_requested ?? item.qty_requested}
@@ -401,7 +401,7 @@ export default function AdminPedidosPage() {
         <div className="space-y-4">
           <div className="card space-y-3">
             <p className="text-white font-bold text-sm">{editingProduct ? '✏️ Editar producto' : '➕ Nuevo producto'}</p>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="col-span-1">
                 <label className="label">Nombre</label>
                 <input type="text" value={editingProduct ? editingProduct.name : newProduct.name}

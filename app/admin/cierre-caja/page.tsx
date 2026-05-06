@@ -339,7 +339,7 @@ export default function AdminCierreCajaPage() {
 
       {/* Resumen período */}
       {!loading && registers.length > 0 && (
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
             { label: 'Total ventas real', value: totals.real,      icon: '📈', color: 'text-white' },
             { label: 'Total Puve',        value: totals.puve,      icon: '🖥️', color: 'text-white' },
@@ -411,7 +411,7 @@ export default function AdminCierreCajaPage() {
 
                 {expanded === r.id && (
                   <div className="mt-4 pt-4 border-t border-white/10 space-y-4">
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                       {([
                         ['Base recibida',      r.opening_fund],
                         ['Total ventas Puve',  r.puve_total_reported ?? 0],

@@ -453,7 +453,7 @@ export default function TrabajadoresPage() {
         <div className="fixed inset-0 bg-black/70 z-50 flex items-end p-4 backdrop-blur-sm">
           <div className="w-full max-w-sm mx-auto bg-purple-900 rounded-3xl border border-white/15 p-6 space-y-4">
             <h3 className="font-bold text-white text-lg">{editingRate ? 'Editar tarifa' : 'Nueva tarifa'} — {selected.full_name}</h3>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div><label className="label">Desde</label><input type="time" value={rateForm.start_time} onChange={(e) => setRateForm(p => ({ ...p, start_time: e.target.value }))} className="input-field" /></div>
               <div><label className="label">Hasta</label><input type="time" value={rateForm.end_time} onChange={(e) => setRateForm(p => ({ ...p, end_time: e.target.value }))} className="input-field" /></div>
             </div>

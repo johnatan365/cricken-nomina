@@ -296,7 +296,7 @@ export default function AdminNominaPage() {
       </div>
 
       {/* Grand totals */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div className="bg-white/10 rounded-2xl border border-white/10 p-4 text-center">
           <p className="text-white/50 text-xs">Horas totales</p>
           <p className="font-bold text-white text-lg mt-1">{formatHours(grandTotals.hours)}</p>
