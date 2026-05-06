@@ -77,20 +77,23 @@ export async function PATCH(req: NextRequest) {
     if (update_product) {
       await supabase.from('kitchen_products').update({ price: new_price }).eq('id', product_id)
     }
-    // 3. Actualizar price_override en pedidos POSTERIORES a order_date (no anteriores)
+    // 3. Actualizar price_override en pedidos POSTERIORES a order_date (no anteriores ni el mismo)
     if (order_date && product_id) {
-      const { data: futureItems } = await supabase
-        .from('kitchen_order_items')
-        .select('id, order_id, kitchen_orders!inner(delivery_date)')
-        .eq('product_id', product_id)
-        .neq('id', item_id || '')
-      if (futureItems) {
-        for (const fi of futureItems) {
-          const orderDeliveryDate = (fi as any).kitchen_orders?.delivery_date
-          if (orderDeliveryDate && orderDeliveryDate > order_date) {
-            await supabase.from('kitchen_order_items').update({ price_override: new_price }).eq('id', fi.id)
-          }
-        }
+      // Paso 1: obtener IDs de pedidos con fecha posterior
+      const { data: futureOrders } = await supabase
+        .from('kitchen_orders')
+        .select('id')
+        .gt('delivery_date', order_date)
+      
+      if (futureOrders && futureOrders.length > 0) {
+        const futureOrderIds = futureOrders.map((o: {id: string}) => o.id)
+        // Paso 2: actualizar items de esos pedidos para ese producto
+        await supabase
+          .from('kitchen_order_items')
+          .update({ price_override: new_price })
+          .eq('product_id', product_id)
+          .in('order_id', futureOrderIds)
+          .neq('id', item_id || '')
       }
     }
     return NextResponse.json({ ok: true })
