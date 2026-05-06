@@ -26,22 +26,28 @@ export default function PedidoPage() {
   const delRefs = useRef<(HTMLInputElement | null)[]>([])
   const DRAFT_KEY = 'pedido_draft_kitchen'
 
-  // Guardar draft en localStorage
+  // Guardar draft en localStorage — siempre, incluyendo valores 0 y vacíos
   useEffect(() => {
-    if (Object.keys(quantities).some(k => quantities[k] > 0)) {
+    if (Object.keys(quantities).length > 0) {
       localStorage.setItem(DRAFT_KEY + '_qty', JSON.stringify(quantities))
+    } else {
+      localStorage.removeItem(DRAFT_KEY + '_qty')
     }
   }, [quantities])
 
   useEffect(() => {
-    if (Object.keys(deliveries).some(k => deliveries[k] !== '')) {
+    if (Object.keys(deliveries).length > 0) {
       localStorage.setItem(DRAFT_KEY + '_del', JSON.stringify(deliveries))
+    } else {
+      localStorage.removeItem(DRAFT_KEY + '_del')
     }
   }, [deliveries])
 
   useEffect(() => {
-    if (Object.keys(observations).some(k => observations[k] !== '')) {
+    if (Object.keys(observations).length > 0) {
       localStorage.setItem(DRAFT_KEY + '_obs', JSON.stringify(observations))
+    } else {
+      localStorage.removeItem(DRAFT_KEY + '_obs')
     }
   }, [observations])
 
@@ -109,8 +115,10 @@ export default function PedidoPage() {
         // Abrir WhatsApp con el pedido listo para enviar
         if (json.waLink) window.open(json.waLink, '_blank')
         localStorage.removeItem(DRAFT_KEY + '_qty')
-        showModal('success', '✅ Pedido listo — confirma el envío en WhatsApp')
-        setQuantities({}); loadData()
+        setQuantities({})
+        showModal('success', '✅ Pedido listo — confirma el envío en WhatsApp', {
+          onConfirm: () => { setModal(null); loadData() }
+        })
       }}
     )
   }
@@ -118,14 +126,17 @@ export default function PedidoPage() {
   async function submitDelivery() {
     if (!order) return
 
-    // 1. Verificar observaciones cuando hay diferencia en productos pedidos
-    for (const pid of Array.from(orderedProductIds)) {
-      const delivered = parseFloat(deliveries[pid] || '') 
+    // Solo validar productos Brisas — los de otros proveedores no se validan
+    const brisasProductIds = new Set(products.filter(p => p.supplier === 'Brisas').map(p => p.id))
+    const brisasOrderedIds = Array.from(orderedProductIds).filter(pid => brisasProductIds.has(pid))
+
+    // 1. Verificar productos Brisas pedidos
+    for (const pid of brisasOrderedIds) {
+      const delivered = parseFloat(deliveries[pid] || '')
       const requested = orderedQtyMap[pid]
       const filled    = deliveries[pid] !== undefined && deliveries[pid] !== ''
 
       if (!filled) {
-        // Producto pedido sin cantidad registrada
         const name = products.find(p => p.id === pid)?.name || pid
         showModal('error', `Debes registrar la cantidad entregada de "${name}". Si no llegó, ingresa 0 y escribe la observación.`)
         return
@@ -138,8 +149,8 @@ export default function PedidoPage() {
       }
     }
 
-    // 2. Verificar productos NO pedidos con cantidad > 0 — requieren observación
-    for (const p of products) {
+    // 2. Verificar productos Brisas NO pedidos con cantidad > 0
+    for (const p of products.filter(p => p.supplier === 'Brisas')) {
       const delivered = parseFloat(deliveries[p.id] || '0') || 0
       if (delivered > 0 && !orderedProductIds.has(p.id) && !observations[p.id]?.trim()) {
         showModal('error', `"${p.name}" no fue pedido pero registraste ${delivered}. Debes escribir la observación explicando por qué llegó.`)
@@ -163,7 +174,7 @@ export default function PedidoPage() {
 
     const res = await fetch('/api/worker/kitchen-order', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ order_id: order.id, deliveries: dels }),
+      body: JSON.stringify({ order_id: order.id, deliveries: dels, delivered_by: worker?.id }),
     })
     setSaving(false)
     if (res.ok) {
@@ -209,7 +220,7 @@ export default function PedidoPage() {
                 <button onClick={modal.onConfirm} className="flex-1 py-2.5 rounded-2xl text-sm font-bold bg-yellow-400 text-purple-900">Enviar</button>
               </div>
             ) : (
-              <button onClick={() => setModal(null)} className="w-full py-2.5 rounded-2xl text-sm font-bold bg-white/10 text-white">Entendido</button>
+              <button onClick={() => modal.onConfirm ? modal.onConfirm() : setModal(null)} className="w-full py-2.5 rounded-2xl text-sm font-bold bg-white/10 text-white">Entendido</button>
             )}
           </div>
         </div>
