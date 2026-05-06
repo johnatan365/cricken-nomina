@@ -28,17 +28,26 @@ export async function GET(req: NextRequest) {
 
   const orderType = searchParams.get('order_type') || 'kitchen'
 
-  // Primero buscar si hay algún pedido pending sin confirmar (cualquier fecha)
-  const { data: pendingOrder } = await supabase
+  // Buscar pedido pending sin confirmar (cualquier fecha)
+  const { data: pendingOrder, error: orderError } = await supabase
     .from('kitchen_orders')
-    .select('*, worker:workers(full_name), items:kitchen_order_items(*, product:kitchen_products(*))')
+    .select('id, delivery_date, status, worker_id, delivered_by, order_type')
     .eq('status', 'pending')
     .eq('order_type', orderType)
     .order('delivery_date', { ascending: false })
     .limit(1)
     .maybeSingle()
 
-  // Si hay pending usar ese, si no usar la fecha calculada para nuevo pedido
+  // Buscar items del pedido por separado
+  let orderItems: any[] = []
+  if (pendingOrder?.id) {
+    const { data: items } = await supabase
+      .from('kitchen_order_items')
+      .select('id, product_id, qty_requested, qty_delivered, observation, price_override, product:kitchen_products(id, name, price, supplier)')
+      .eq('order_id', pendingOrder.id)
+    orderItems = items || []
+  }
+
   const order = pendingOrder || null
   const effectiveDeliveryDate = pendingOrder ? pendingOrder.delivery_date : deliveryDate
 
@@ -49,7 +58,14 @@ export async function GET(req: NextRequest) {
     .eq('order_type', orderType)
     .order('sort_order')
 
-  const orderWithName = order ? { ...order, worker_name: (order as any).worker?.full_name || '' } : null
+  // Obtener nombre del worker sin join ambiguo
+  let workerName = ''
+  if (pendingOrder?.worker_id) {
+    const { data: w } = await supabase.from('workers').select('full_name').eq('id', pendingOrder.worker_id).single()
+    workerName = w?.full_name || ''
+  }
+
+  const orderWithName = pendingOrder ? { ...pendingOrder, items: orderItems, worker_name: workerName } : null
   return NextResponse.json({ order: orderWithName, products, deliveryDate: effectiveDeliveryDate })
 }
 
