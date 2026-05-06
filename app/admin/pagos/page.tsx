@@ -182,12 +182,12 @@ export default function PagosPage() {
       <h1 className="font-bold text-2xl text-white">Pagos</h1>
 
       <div className="flex bg-white/10 rounded-2xl p-1 gap-1">
-        {(['registrar', 'historial'] as const).map((tab) => (
+        {(['registrar', 'historial', 'proveedores'] as const).map((tab) => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all ${
               activeTab === tab ? 'bg-yellow-400 text-purple-900' : 'text-white/60 hover:text-white'
             }`}>
-            {tab === 'registrar' ? 'Registrar Pago' : 'Historial'}
+            {tab === 'registrar' ? 'Registrar Pago' : tab === 'historial' ? 'Historial' : '🏭 Proveedores'}
           </button>
         ))}
       </div>
