@@ -24,6 +24,19 @@ export default function PagosPage() {
   const [histDateFrom, setHistDateFrom] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'))
   const [histDateTo, setHistDateTo] = useState(format(endOfMonth(new Date()), 'yyyy-MM-dd'))
 
+  // Estados proveedores
+  const [suppLoading, setSuppLoading]   = useState(false)
+  const [suppDateFrom, setSuppDateFrom] = useState(() => {
+    const d = new Date(); d.setDate(1); return d.toISOString().split('T')[0]
+  })
+  const [suppDateTo, setSuppDateTo]     = useState(() => new Date().toISOString().split('T')[0])
+  const [suppDebts, setSuppDebts]       = useState<Record<string, {kitchen: number; cash: number}>>({})
+  const [suppPayments, setSuppPayments] = useState<any[]>([])
+  const [suppPayModal, setSuppPayModal] = useState<{supplier: string; orderType: 'kitchen'|'cash'|'all'; amount: number} | null>(null)
+  const [suppPayNotes, setSuppPayNotes] = useState('')
+  const [suppSaving, setSuppSaving]     = useState(false)
+  const [histMonth, setHistMonth]       = useState(() => new Date().toISOString().slice(0,7))
+
   const loadSupplierData = useCallback(async () => {
     setSuppLoading(true)
     // Calcular deudas por proveedor desde kitchen_orders entregados
