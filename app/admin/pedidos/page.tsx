@@ -54,6 +54,16 @@ export default function AdminPedidosPage() {
 
   const suppliers = [...new Set(products.map(p => p.supplier))].sort()
 
+  function getWhatsAppLink(order: Order) {
+    const label = mainTab === 'cash' ? 'Pedido Caja Cricken' : 'Pedido Cocina Cricken'
+    const lines = (order.items || [])
+      .filter(i => i.qty_requested > 0)
+      .map(i => `${i.qty_requested} - ${i.product?.name}`)
+      .join('\n')
+    const msg = `*${label}*\nEntrega: ${order.delivery_date}\n\n${lines}`
+    return `https://wa.me/573104122227?text=${encodeURIComponent(msg)}`
+  }
+
   // ── Drag & drop productos ──
   async function handleDrop() {
     if (dragItem.current === null || dragOver.current === null) return
@@ -366,7 +376,14 @@ export default function AdminPedidosPage() {
                       )
                     })}
 
-                    <div className="flex justify-between font-bold border-t border-white/15 pt-3">
+                    <div className="flex items-center justify-between border-t border-white/15 pt-3">
+                      <a href={getWhatsAppLink(order)} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-2 bg-green-500/20 border border-green-500/30 text-green-300 text-xs font-bold px-3 py-2 rounded-xl hover:bg-green-500/30 transition-all">
+                        📱 Enviar por WhatsApp
+                      </a>
+                    </div>
+
+                    <div className="flex justify-between font-bold pt-1">
                       <span className="text-white">Total pedido</span>
                       <span className={`text-lg ${total !== null ? 'text-yellow-400' : 'text-white/30'}`}>
                         {total !== null ? cop(total) : 'Pendiente de entrega'}
