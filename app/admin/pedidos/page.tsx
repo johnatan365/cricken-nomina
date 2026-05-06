@@ -71,7 +71,7 @@ export default function AdminPedidosPage() {
     showMsg('success', 'Orden guardado')
   }
 
-  async function saveItemEdit(itemId: string) {
+  async function saveItemEdit(itemId: string, orderDeliveryDate: string) {
     const edit = editingItem[itemId]
     if (!edit) return
     const update: Record<string, unknown> = { type: 'item', item_id: itemId }
@@ -82,9 +82,7 @@ export default function AdminPedidosPage() {
       const item = orders.flatMap(o => o.items).find(i => i.id === itemId)
       if (item) await fetch('/api/admin/kitchen-orders', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        // update_product=true actualiza la tabla de productos (futuros pedidos)
-        // item_id guarda price_override solo en este item (no afecta pedidos anteriores)
-        body: JSON.stringify({ type: 'price', product_id: item.product_id, new_price: parseFloat(edit.price) || 0, item_id: itemId, update_product: true, order_date: orders.find(o => o.items.some(i => i.id === itemId))?.delivery_date }),
+        body: JSON.stringify({ type: 'price', product_id: item.product_id, new_price: parseFloat(edit.price) || 0, item_id: itemId, update_product: true, order_date: orderDeliveryDate }),
       })
     }
     const newE = { ...editingItem }; delete newE[itemId]
@@ -349,7 +347,7 @@ export default function AdminPedidosPage() {
                                     {order.status === 'delivered' ? cop((item.qty_delivered ?? 0) * price) : '—'}
                                   </span>
                                     <div className="flex justify-end gap-1">
-                                      {isDirty && <button onClick={() => saveItemEdit(item.id)} className="text-yellow-400 text-xs">💾</button>}
+                                      {isDirty && <button onClick={() => saveItemEdit(item.id, order.delivery_date)} className="text-yellow-400 text-xs">💾</button>}
                                       <button onClick={() => deleteItem(item.id)} className="text-red-400/50 hover:text-red-400 text-xs">✕</button>
                                     </div>
                                   </div>
