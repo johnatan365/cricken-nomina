@@ -12,7 +12,7 @@ type WorkerPending = Worker & {
 }
 
 export default function PagosPage() {
-  const [activeTab, setActiveTab] = useState<'registrar' | 'historial'>('registrar')
+  const [activeTab, setActiveTab] = useState<'registrar' | 'historial' | 'proveedores'>('registrar')
   const [workers, setWorkers] = useState<WorkerPending[]>([])
   const [payments, setPayments] = useState<(Payment & { workers: Worker })[]>([])
   const [allWorkers, setAllWorkers] = useState<Worker[]>([])
@@ -23,6 +23,46 @@ export default function PagosPage() {
   const [status, setStatus] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
   const [histDateFrom, setHistDateFrom] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'))
   const [histDateTo, setHistDateTo] = useState(format(endOfMonth(new Date()), 'yyyy-MM-dd'))
+
+  const loadSupplierData = useCallback(async () => {
+    setSuppLoading(true)
+    // Calcular deudas por proveedor desde kitchen_orders entregados
+    const { data: orders } = await fetch(
+      `/api/admin/kitchen-orders?date_from=${suppDateFrom}&date_to=${suppDateTo}&order_type=kitchen`
+    ).then(r => r.json()).then(j => ({ data: j.orders || [] }))
+
+    const { data: cashOrders } = await fetch(
+      `/api/admin/kitchen-orders?date_from=${suppDateFrom}&date_to=${suppDateTo}&order_type=cash`
+    ).then(r => r.json()).then(j => ({ data: j.orders || [] }))
+
+    const debts: Record<string, {kitchen: number; cash: number}> = {}
+
+    const calcTotal = (orders: any[], type: 'kitchen'|'cash') => {
+      orders.filter((o: any) => o.status === 'delivered').forEach((o: any) => {
+        ;(o.items || []).forEach((item: any) => {
+          const supplier = item.product?.supplier || 'Otro'
+          if (!debts[supplier]) debts[supplier] = { kitchen: 0, cash: 0 }
+          const qty   = item.qty_delivered ?? 0
+          const price = item.price_override ?? item.product?.price ?? 0
+          debts[supplier][type] += qty * price
+        })
+      })
+    }
+
+    calcTotal(orders, 'kitchen')
+    calcTotal(cashOrders, 'cash')
+    setSuppDebts(debts)
+
+    // Historial de pagos
+    const { payments } = await fetch(`/api/admin/supplier-payments?month=${histMonth}`)
+      .then(r => r.json())
+    setSuppPayments(payments || [])
+    setSuppLoading(false)
+  }, [suppDateFrom, suppDateTo, histMonth])
+
+  useEffect(() => {
+    if (activeTab === 'proveedores') loadSupplierData()
+  }, [activeTab, loadSupplierData])
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -284,6 +324,142 @@ export default function PagosPage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+      {/* ── TAB PROVEEDORES ── */}
+      {activeTab === 'proveedores' && (
+        <div className="space-y-4">
+          {/* Modal pagar */}
+          {suppPayModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
+              onClick={() => setSuppPayModal(null)}>
+              <div className="w-full max-w-sm bg-purple-900 rounded-3xl border border-white/20 p-5 space-y-4"
+                onClick={e => e.stopPropagation()}>
+                <p className="text-white font-bold">Registrar pago — {suppPayModal.supplier}</p>
+                <div>
+                  <label className="label">Monto a pagar</label>
+                  <input type="number" className="input-field"
+                    value={suppPayModal.amount}
+                    onChange={e => setSuppPayModal(prev => prev ? { ...prev, amount: parseFloat(e.target.value) || 0 } : prev)} />
+                </div>
+                <div>
+                  <label className="label">Notas (opcional)</label>
+                  <input type="text" className="input-field" placeholder="ej: semana 1-6 mayo"
+                    value={suppPayNotes} onChange={e => setSuppPayNotes(e.target.value)} />
+                </div>
+                <div className="flex gap-3">
+                  <button onClick={() => setSuppPayModal(null)} className="flex-1 py-2.5 rounded-2xl text-sm font-bold bg-white/10 text-white/60">Cancelar</button>
+                  <button disabled={suppSaving} onClick={async () => {
+                    setSuppSaving(true)
+                    await fetch('/api/admin/supplier-payments', {
+                      method: 'POST', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        supplier: suppPayModal.supplier,
+                        amount: suppPayModal.amount,
+                        date_from: suppDateFrom,
+                        date_to: suppDateTo,
+                        order_type: suppPayModal.orderType,
+                        notes: suppPayNotes,
+                      })
+                    })
+                    setSuppPayModal(null); setSuppPayNotes(''); setSuppSaving(false)
+                    loadSupplierData()
+                  }} className="flex-1 py-2.5 rounded-2xl text-sm font-bold bg-yellow-400 text-purple-900">
+                    {suppSaving ? 'Guardando...' : 'Confirmar pago'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Filtros */}
+          <div className="card grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div><label className="label">Desde</label><input type="date" value={suppDateFrom} onChange={e => setSuppDateFrom(e.target.value)} className="input-field" /></div>
+            <div><label className="label">Hasta</label><input type="date" value={suppDateTo} onChange={e => setSuppDateTo(e.target.value)} className="input-field" /></div>
+          </div>
+
+          {/* Resumen totales */}
+          <div className="grid grid-cols-3 gap-3">
+            {['Total pendiente', 'Cocina', 'Caja'].map((label, i) => {
+              const total = Object.values(suppDebts).reduce((s, d) => s + (i === 0 ? d.kitchen + d.cash : i === 1 ? d.kitchen : d.cash), 0)
+              return (
+                <div key={label} className="card text-center">
+                  <p className="text-white/40 text-xs">{label}</p>
+                  <p className="text-red-300 font-bold text-sm">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(total)}</p>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Deudas por proveedor */}
+          {suppLoading ? <div className="card text-center py-8"><p className="text-white/40">Cargando...</p></div>
+          : Object.keys(suppDebts).length === 0 ? <div className="card text-center py-8"><p className="text-white/40">No hay pedidos entregados en este período</p></div>
+          : Object.entries(suppDebts).map(([supplier, debt]) => (
+            <div key={supplier} className="card space-y-3">
+              <p className="text-white font-bold text-sm">{supplier}</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-white/5 rounded-xl px-3 py-2">
+                  <p className="text-white/40 text-xs">Cocina</p>
+                  <p className="text-white font-bold">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(debt.kitchen)}</p>
+                </div>
+                <div className="bg-white/5 rounded-xl px-3 py-2">
+                  <p className="text-white/40 text-xs">Caja</p>
+                  <p className="text-white font-bold">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(debt.cash)}</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between border-t border-white/10 pt-2">
+                <div>
+                  <p className="text-white/40 text-xs">Total</p>
+                  <p className="text-red-300 font-bold">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(debt.kitchen + debt.cash)}</p>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setSuppPayModal({ supplier, orderType: 'all', amount: debt.kitchen + debt.cash })}
+                    className="btn-primary text-xs py-1.5 px-3">Pagar todo</button>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setSuppPayModal({ supplier, orderType: 'kitchen', amount: debt.kitchen })}
+                  className="flex-1 py-1.5 rounded-xl text-xs font-bold bg-white/10 text-white/70 hover:bg-white/20 transition-all">
+                  Solo cocina
+                </button>
+                <button onClick={() => setSuppPayModal({ supplier, orderType: 'cash', amount: debt.cash })}
+                  className="flex-1 py-1.5 rounded-xl text-xs font-bold bg-white/10 text-white/70 hover:bg-white/20 transition-all">
+                  Solo caja
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {/* Historial */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-white font-bold text-sm">Historial de pagos</p>
+              <input type="month" value={histMonth} onChange={e => setHistMonth(e.target.value)}
+                className="input-field !py-1 !px-2 text-xs w-auto" />
+            </div>
+            {suppPayments.length === 0 ? (
+              <div className="card text-center py-4"><p className="text-white/40 text-sm">Sin pagos en este mes</p></div>
+            ) : suppPayments.map((p: any) => (
+              <div key={p.id} className="card flex items-center justify-between">
+                <div>
+                  <p className="text-white font-bold text-sm">{p.supplier}</p>
+                  <p className="text-white/40 text-xs">
+                    {p.order_type === 'kitchen' ? 'Cocina' : p.order_type === 'cash' ? 'Caja' : 'Cocina + Caja'} ·{' '}
+                    {p.date_from} → {p.date_to}
+                    {p.notes ? ` · ${p.notes}` : ''}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <p className="text-emerald-400 font-bold">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(p.amount)}</p>
+                  <button onClick={async () => {
+                    if (!confirm('¿Eliminar este pago?')) return
+                    await fetch('/api/admin/supplier-payments?id=' + p.id, { method: 'DELETE' })
+                    loadSupplierData()
+                  }} className="text-red-400/50 hover:text-red-400 text-xs">🗑</button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
