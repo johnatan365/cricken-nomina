@@ -87,20 +87,52 @@ export async function PATCH(req: NextRequest) {
 
   if (body.type === 'price') {
     const { product_id, new_price, item_id, update_product, order_date } = body
+    
+    // 1. Actualizar este item específico
     if (item_id) {
       await supabase.from('kitchen_order_items').update({ price_override: new_price }).eq('id', item_id)
     }
+
+    // 2. Obtener precio actual del producto ANTES de cambiarlo
+    const { data: currentProduct } = await supabase
+      .from('kitchen_products').select('price').eq('id', product_id).single()
+    const currentPrice = currentProduct?.price ?? 0
+
+    // 3. Congelar pedidos ANTERIORES a order_date con el precio actual
+    // (para que no se vean afectados cuando cambie kitchen_products.price)
+    if (order_date && product_id) {
+      const { data: prevOrders } = await supabase
+        .from('kitchen_orders').select('id').lt('delivery_date', order_date)
+      if (prevOrders && prevOrders.length > 0) {
+        const prevIds = prevOrders.map(o => o.id)
+        // Solo congelar los que aún tienen price_override = null
+        await supabase.from('kitchen_order_items')
+          .update({ price_override: currentPrice })
+          .eq('product_id', product_id)
+          .in('order_id', prevIds)
+          .is('price_override', null)
+      }
+    }
+
+    // 4. Actualizar tabla de productos (afecta futuros pedidos sin override)
     if (update_product) {
       await supabase.from('kitchen_products').update({ price: new_price }).eq('id', product_id)
     }
+
+    // 5. Actualizar pedidos POSTERIORES a order_date
     if (order_date && product_id) {
-      const { data: futureOrders } = await supabase.from('kitchen_orders').select('id').gt('delivery_date', order_date)
+      const { data: futureOrders } = await supabase
+        .from('kitchen_orders').select('id').gt('delivery_date', order_date)
       if (futureOrders && futureOrders.length > 0) {
-        const ids = futureOrders.map(o => o.id)
-        await supabase.from('kitchen_order_items').update({ price_override: new_price })
-          .eq('product_id', product_id).in('order_id', ids).neq('id', item_id || '')
+        const futureIds = futureOrders.map(o => o.id)
+        await supabase.from('kitchen_order_items')
+          .update({ price_override: new_price })
+          .eq('product_id', product_id)
+          .in('order_id', futureIds)
+          .neq('id', item_id || '')
       }
     }
+
     return NextResponse.json({ ok: true })
   }
 
