@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
 
   let q = supabase
     .from('kitchen_orders')
-    .select('*, worker:workers(full_name), items:kitchen_order_items(*, product:kitchen_products(*))')
+    .select('*, items:kitchen_order_items(*, product:kitchen_products(*))')
     .eq('order_type', order_type)
     .order('delivery_date', { ascending: false })
 
@@ -25,11 +25,30 @@ export async function GET(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
   let orders = data || []
+
+  // Enriquecer con nombre del trabajador manualmente (evita ambigüedad de FK)
+  if (orders.length > 0) {
+    const workerIds = [...new Set(orders.map((o: any) => o.worker_id).filter(Boolean))]
+    const deliveredByIds = [...new Set(orders.map((o: any) => o.delivered_by).filter(Boolean))]
+    const allIds = [...new Set([...workerIds, ...deliveredByIds])]
+    
+    if (allIds.length > 0) {
+      const { data: workers } = await supabase.from('workers').select('id, full_name').in('id', allIds)
+      const workerMap = Object.fromEntries((workers || []).map((w: any) => [w.id, w.full_name]))
+      
+      orders = orders.map((o: any) => ({
+        ...o,
+        worker: { full_name: workerMap[o.worker_id] || 'Desconocido' },
+        delivered_by_worker: o.delivered_by ? { full_name: workerMap[o.delivered_by] || 'Desconocido' } : null,
+      }))
+    }
+  }
+
   if (supplier && supplier !== 'all') {
-    orders = orders.map(o => ({
+    orders = orders.map((o: any) => ({
       ...o,
       items: (o.items || []).filter((i: {product: {supplier: string}}) => i.product?.supplier === supplier)
-    })).filter(o => o.items.length > 0)
+    })).filter((o: any) => o.items.length > 0)
   }
 
   return NextResponse.json({ orders })
