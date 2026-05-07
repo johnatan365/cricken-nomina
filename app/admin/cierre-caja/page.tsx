@@ -401,7 +401,7 @@ export default function AdminCierreCajaPage() {
                                   headers: { 'Content-Type': 'application/json' },
                                   body: JSON.stringify({ id: r.id, register_date: editingDate.date })
                                 })
-                                loadRegisters()
+                                loadData()
                               }
                               setEditingDate(null)
                             }} autoFocus />
