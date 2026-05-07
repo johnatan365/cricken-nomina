@@ -52,3 +52,14 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'Error interno' }, { status: 500 })
   }
 }
+
+export async function PATCH(req: NextRequest) {
+  const { id, register_date } = await req.json()
+  const supabase = createAdminClient()
+  const { error } = await supabase
+    .from('cash_registers')
+    .update({ register_date })
+    .eq('id', id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  return NextResponse.json({ ok: true })
+}
