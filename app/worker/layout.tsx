@@ -11,7 +11,9 @@ const BASE_NAV = [
 ]
 const CASH_NAV    = { href: '/worker/cierre-caja', icon: '🧾', label: 'Cierre de Caja' }
 const KITCHEN_NAV  = { href: '/worker/pedido', icon: '🍳', label: 'Pedido Cocina' }
-const CASH_ORDER_NAV = { href: '/worker/pedido-caja', icon: '🗂', label: 'Pedido Caja' }
+const CASH_ORDER_NAV  = { href: '/worker/pedido-caja', icon: '🗂', label: 'Pedido Caja' }
+const FOOD_NAV        = { href: '/worker/pedido-food', icon: '🍔', label: 'Food Tracker' }
+const FOOD_REPORT_NAV = { href: '/worker/food-report', icon: '📊', label: 'Mi cuenta Food' }
 
 export default function WorkerLayout({ children }: { children: React.ReactNode }) {
   const router   = useRouter()
@@ -22,6 +24,7 @@ export default function WorkerLayout({ children }: { children: React.ReactNode }
   const [hasCash, setHasCash]         = useState(false)
   const [hasKitchen, setHasKitchen]       = useState(false)
   const [hasCashOrder, setHasCashOrder]   = useState(false)
+  const [hasFood, setHasFood]               = useState(false)
 
   useEffect(() => {
     async function loadWorker() {
@@ -29,7 +32,7 @@ export default function WorkerLayout({ children }: { children: React.ReactNode }
       if (!user) { router.push('/auth/login'); return }
       const { data } = await supabase
         .from('workers')
-        .select('full_name, has_cash_register, has_kitchen_access, has_cash_order_access')
+        .select('full_name, has_cash_register, has_kitchen_access, has_cash_order_access, has_food_tracker_access')
         .eq('auth_user_id', user.id)
         .single()
       if (data) {
@@ -37,6 +40,7 @@ export default function WorkerLayout({ children }: { children: React.ReactNode }
         setHasCash(data.has_cash_register ?? false)
         setHasKitchen(data.has_kitchen_access ?? false)
         setHasCashOrder(data.has_cash_order_access ?? false)
+        setHasFood(data.has_food_tracker_access ?? false)
       }
     }
     loadWorker()
@@ -47,6 +51,7 @@ export default function WorkerLayout({ children }: { children: React.ReactNode }
     ...(hasCash      ? [CASH_NAV]       : []),
     ...(hasKitchen   ? [KITCHEN_NAV]    : []),
     ...(hasCashOrder ? [CASH_ORDER_NAV] : []),
+    ...(hasFood     ? [FOOD_NAV, FOOD_REPORT_NAV] : []),
   ]
 
   const handleLogout = async () => {

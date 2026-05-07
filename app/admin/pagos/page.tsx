@@ -12,7 +12,8 @@ type WorkerPending = Worker & {
 }
 
 export default function PagosPage() {
-  const [activeTab, setActiveTab] = useState<'registrar' | 'historial' | 'proveedores'>('registrar')
+  const [mainTab, setMainTab]     = useState<'nomina'|'proveedores'>('nomina')
+  const [activeTab, setActiveTab] = useState<'registrar' | 'historial'>('registrar')
   const [workers, setWorkers] = useState<WorkerPending[]>([])
   const [payments, setPayments] = useState<(Payment & { workers: Worker })[]>([])
   const [allWorkers, setAllWorkers] = useState<Worker[]>([])
@@ -75,8 +76,8 @@ export default function PagosPage() {
   }, [suppDateFrom, suppDateTo, histMonth])
 
   useEffect(() => {
-    if (activeTab === 'proveedores') loadSupplierData()
-  }, [activeTab, loadSupplierData])
+    if (mainTab === 'proveedores') loadSupplierData()
+  }, [mainTab, loadSupplierData])
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -183,14 +184,22 @@ export default function PagosPage() {
       <h1 className="font-bold text-2xl text-white">Pagos</h1>
 
       <div className="flex bg-white/10 rounded-2xl p-1 gap-1">
-        {(['registrar', 'historial', 'proveedores'] as const).map((tab) => (
-          <button key={tab} onClick={() => setActiveTab(tab)}
-            className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all ${
-              activeTab === tab ? 'bg-yellow-400 text-purple-900' : 'text-white/60 hover:text-white'
-            }`}>
-            {tab === 'registrar' ? 'Registrar Pago' : tab === 'historial' ? 'Historial' : '🏭 Proveedores'}
+        {(['nomina', 'proveedores'] as const).map(t => (
+          <button key={t} onClick={() => setMainTab(t)}
+            className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all ${mainTab === t ? 'bg-yellow-400 text-purple-900' : 'text-white/60 hover:text-white'}`}>
+            {t === 'nomina' ? '👥 Nómina' : '🏭 Proveedores'}
           </button>
         ))}
+        {mainTab === 'nomina' && (
+          <div className="flex gap-1 bg-white/5 rounded-xl p-1 mt-1">
+            {(['registrar', 'historial'] as const).map(t => (
+              <button key={t} onClick={() => setActiveTab(t)}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${activeTab === t ? 'bg-white/15 text-white' : 'text-white/40 hover:text-white'}`}>
+                {t === 'registrar' ? 'Registrar Pago' : 'Historial'}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {status && (
@@ -205,7 +214,7 @@ export default function PagosPage() {
 
       {loading ? (
         <div className="text-center py-10 text-white/40">Cargando...</div>
-      ) : activeTab === 'proveedores' ? null : activeTab === 'registrar' ? (
+      ) : mainTab === 'proveedores' ? null : activeTab === 'registrar' ? (
         <div className="space-y-4">
           {workers.length === 0 ? (
             <div className="text-center py-12 bg-white/5 rounded-3xl border border-white/10">
@@ -341,7 +350,7 @@ export default function PagosPage() {
         </div>
       )}
       {/* ── TAB PROVEEDORES ── */}
-      {activeTab === 'proveedores' && (
+      {mainTab === 'proveedores' && (
         <div className="space-y-4">
           {/* Modal pagar */}
           {suppPayModal && (

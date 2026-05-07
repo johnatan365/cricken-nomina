@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
     .select('id, delivery_date, status, worker_id, delivered_by, order_type')
     .eq('status', 'pending')
     .eq('order_type', orderType)
-    .order('delivery_date', { ascending: false })
+    .order('submitted_at', { ascending: false })
     .limit(1)
     .maybeSingle()
 
@@ -75,15 +75,21 @@ export async function POST(req: NextRequest) {
   const supabase = createAdminClient()
 
   // Solo bloquear si hay un pedido PENDING para esa fecha
-  const { data: existing } = await supabase
-    .from('kitchen_orders')
-    .select('id')
-    .eq('delivery_date', delivery_date)
-    .eq('status', 'pending')
-    .eq('order_type', body_data.order_type || 'kitchen')
-    .maybeSingle()
+  // Para food tracker: solo bloquear si hay pending (sin importar fecha)
+  // Para kitchen/cash: bloquear por fecha Y status pending
+  let existing = null
+  if (body_data.order_type === 'food') {
+    const { data } = await supabase.from('kitchen_orders')
+      .select('id').eq('status', 'pending').eq('order_type', 'food').maybeSingle()
+    existing = data
+  } else {
+    const { data } = await supabase.from('kitchen_orders')
+      .select('id').eq('delivery_date', delivery_date).eq('status', 'pending')
+      .eq('order_type', body_data.order_type || 'kitchen').maybeSingle()
+    existing = data
+  }
 
-  if (existing) return NextResponse.json({ error: 'Ya existe un pedido pendiente para ese día' }, { status: 409 })
+  if (existing) return NextResponse.json({ error: 'Ya existe un pedido pendiente. Confirma la entrega primero.' }, { status: 409 })
 
   const orderType = body_data.order_type || 'kitchen'
   const { data: order, error } = await supabase
@@ -102,7 +108,11 @@ export async function POST(req: NextRequest) {
   if (orderItems.length > 0) await supabase.from('kitchen_order_items').insert(orderItems)
 
   // Generar link wa.me con el pedido completo
-  const orderLabel = (body_data.order_type || 'kitchen') === 'cash' ? 'Pedido Caja Cricken' : 'Pedido Cocina Cricken'
+  const orderLabel = (body_data.order_type || 'kitchen') === 'cash'
+    ? 'Pedido Caja Cricken'
+    : body_data.order_type === 'food'
+    ? 'Food Tracker - Pedido'
+    : 'Pedido Cocina Cricken'
   const lines = items
     .filter((i: {qty_requested: number}) => i.qty_requested > 0)
     .map((i: {name: string; qty_requested: number}) => `${i.qty_requested} - ${i.name}`)
