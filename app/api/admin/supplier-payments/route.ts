@@ -5,15 +5,19 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
-  const month = searchParams.get('month') // YYYY-MM
-  const supabase = createAdminClient()
+  const month     = searchParams.get('month')
+  const date_from = searchParams.get('date_from')
+  const date_to   = searchParams.get('date_to')
+  const supabase  = createAdminClient()
 
   let q = supabase
     .from('supplier_payments')
     .select('*')
     .order('paid_at', { ascending: false })
 
-  if (month) {
+  if (date_from && date_to) {
+    q = q.gte('paid_at', date_from).lte('paid_at', date_to + 'T23:59:59')
+  } else if (month) {
     const start = `${month}-01`
     const end   = new Date(parseInt(month.split('-')[0]), parseInt(month.split('-')[1]), 0)
       .toISOString().split('T')[0]

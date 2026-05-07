@@ -37,18 +37,18 @@ export default function FoodReportPage() {
     }))
     setOrders(ordersWithTotal)
 
-    // Pagos registrados a Johnatan del mes
-    const pRes = await fetch(`/api/admin/supplier-payments?month=${month}`)
+    // Usar food-order-payments para estado por pedido
+    const pRes = await fetch(`/api/admin/food-order-payments?date_from=${dateFrom}&date_to=${dateTo}`)
     const pJson = await pRes.json()
-    setPayments((pJson.payments || []).filter((p: any) => p.supplier === 'Johnatan'))
+    setPayments(pJson.payments || [])
 
     setLoading(false)
   }, [month])
 
   useEffect(() => { loadData() }, [loadData])
 
-  const totalOrders   = orders.reduce((s, o) => s + o.total, 0)
-  const totalPaid     = payments.reduce((s, p) => s + p.amount, 0)
+  const totalOrders   = orders.reduce((s: number, o: any) => s + (o.total || 0), 0)
+  const totalPaid     = orders.filter((o: any) => o.isPaid).reduce((s: number, o: any) => s + (o.total || 0), 0)
   const totalPending  = Math.max(0, totalOrders - totalPaid)
 
   if (loading) return <div className="flex items-center justify-center min-h-[60vh]"><p className="text-white/40 text-sm">Cargando...</p></div>
@@ -86,9 +86,7 @@ export default function FoodReportPage() {
         <p className="text-white font-bold text-sm mb-2">Pedidos entregados</p>
         {orders.length === 0 ? (
           <div className="card text-center py-6"><p className="text-white/40 text-sm">Sin pedidos entregados este mes</p></div>
-        ) : orders.map(o => {
-          const isPaid = totalPaid >= totalOrders && totalPaid > 0
-          return (
+        ) : orders.map((o: any) => (
           <div key={o.id} className="card flex items-center justify-between mb-2">
             <div>
               <p className="text-white font-bold text-sm">{format(parseISO(o.delivery_date), "d 'de' MMMM", { locale: es })}</p>
@@ -96,13 +94,12 @@ export default function FoodReportPage() {
             </div>
             <div className="text-right">
               <p className="text-yellow-400 font-bold">{cop(o.total)}</p>
-              <span className={`text-xs px-2 py-0.5 rounded-full ${isPaid ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300'}`}>
-                {isPaid ? '✓ Pagado' : '⏳ Pendiente'}
+              <span className={`text-xs px-2 py-0.5 rounded-full ${o.isPaid ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300'}`}>
+                {o.isPaid ? '✓ Pagado' : '⏳ Pendiente'}
               </span>
             </div>
           </div>
-          )
-        })}
+        ))}
       </div>
 
       {/* Pagos */}

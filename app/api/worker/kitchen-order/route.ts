@@ -27,6 +27,11 @@ export async function GET(req: NextRequest) {
   const deliveryDate = getDeliveryDate()
 
   const orderType = searchParams.get('order_type') || 'kitchen'
+  // Food tracker: siempre fecha actual, sin corte 2pm
+  if (orderType === 'food') {
+    const todayBogota = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }))
+    deliveryDate = todayBogota.toISOString().split('T')[0]
+  }
 
   // Buscar pedido pending sin confirmar (cualquier fecha)
   const { data: pendingOrder, error: orderError } = await supabase
@@ -91,7 +96,7 @@ export async function POST(req: NextRequest) {
 
   if (existing) return NextResponse.json({ error: 'Ya existe un pedido pendiente. Confirma la entrega primero.' }, { status: 409 })
 
-  const orderType = body_data.order_type || 'kitchen'
+  let orderType = body_data.order_type || 'kitchen'
   const { data: order, error } = await supabase
     .from('kitchen_orders')
     .insert({ worker_id, delivery_date, status: 'pending', order_type: orderType })
@@ -108,10 +113,10 @@ export async function POST(req: NextRequest) {
   if (orderItems.length > 0) await supabase.from('kitchen_order_items').insert(orderItems)
 
   // Generar link wa.me con el pedido completo
-  const orderLabel = (body_data.order_type || 'kitchen') === 'cash'
+  const orderLabel = body_data.order_type === 'cash'
     ? 'Pedido Caja Cricken'
     : body_data.order_type === 'food'
-    ? 'Food Tracker - Pedido'
+    ? 'Pedido Food Cricken'
     : 'Pedido Cocina Cricken'
   const lines = items
     .filter((i: {qty_requested: number}) => i.qty_requested > 0)

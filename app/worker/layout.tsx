@@ -12,7 +12,7 @@ const BASE_NAV = [
 const CASH_NAV    = { href: '/worker/cierre-caja', icon: '🧾', label: 'Cierre de Caja' }
 const KITCHEN_NAV  = { href: '/worker/pedido', icon: '🍳', label: 'Pedido Cocina' }
 const CASH_ORDER_NAV  = { href: '/worker/pedido-caja', icon: '🗂', label: 'Pedido Caja' }
-const FOOD_NAV        = { href: '/worker/pedido-food', icon: '🍔', label: 'Food Tracker' }
+const FOOD_NAV        = { href: '/worker/pedido-food', icon: '🍔', label: 'Pedido Food' }
 const FOOD_REPORT_NAV = { href: '/worker/food-report', icon: '📊', label: 'Mi cuenta Food' }
 
 export default function WorkerLayout({ children }: { children: React.ReactNode }) {

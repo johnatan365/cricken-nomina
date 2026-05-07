@@ -27,6 +27,9 @@ export default function PagosPage() {
 
   // Estados proveedores
   const [suppLoading, setSuppLoading]   = useState(false)
+  const [foodOrders, setFoodOrders]     = useState<any[]>([])
+  const [selectedFood, setSelectedFood] = useState<Set<string>>(new Set())
+  const [foodSaving, setFoodSaving]     = useState(false)
   const [suppFilter, setSuppFilter]     = useState('Brisas')
   const [suppDateFrom, setSuppDateFrom] = useState(() => {
     const d = new Date(); d.setDate(1); return d.toISOString().split('T')[0]
@@ -67,10 +70,15 @@ export default function PagosPage() {
     calcTotal(foodRes.orders, 'food')
     setSuppDebts(debts)
 
-    // Historial de pagos
-    const { payments } = await fetch(`/api/admin/supplier-payments?month=${histMonth}`)
+    // Historial de pagos — filtrado por el mismo rango de fechas
+    const paymentsRes = await fetch(`/api/admin/supplier-payments?date_from=${suppDateFrom}&date_to=${suppDateTo}`)
       .then(r => r.json())
-    setSuppPayments(payments || [])
+    setSuppPayments(paymentsRes.payments || [])
+
+    // Pedidos food para selección individual
+    const foodOrdersRes = await fetch(`/api/admin/food-order-payments?date_from=${suppDateFrom}&date_to=${suppDateTo}`)
+      .then(r => r.json())
+    setFoodOrders(foodOrdersRes.orders || [])
     setSuppLoading(false)
   }, [suppDateFrom, suppDateTo, histMonth])
 
