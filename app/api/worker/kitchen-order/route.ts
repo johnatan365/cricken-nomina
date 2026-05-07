@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
     .select('id, delivery_date, status, worker_id, delivered_by, order_type')
     .eq('status', 'pending')
     .eq('order_type', orderType)
-    .order('submitted_at', { ascending: false })
+    .order('delivery_date', { ascending: false })
     .limit(1)
     .maybeSingle()
 
@@ -126,12 +126,12 @@ export async function POST(req: NextRequest) {
   const msg = `*${orderLabel}*\nFecha pedido: ${delivery_date}\n\n${lines}`
 
   // Food Tracker → copiar al portapapeles (grupo WhatsApp)
-  // Otros → abrir wa.me
+  // Otros → abrir wa.me Y copiar al portapapeles
   if (body_data.order_type === 'food') {
     return NextResponse.json({ ok: true, order, waMessage: msg })
   }
   const waLink = `https://wa.me/573192099123?text=${encodeURIComponent(msg)}`
-  return NextResponse.json({ ok: true, order, waLink })
+  return NextResponse.json({ ok: true, order, waLink, waMessage: msg })
 }
 
 export async function PATCH(req: NextRequest) {
