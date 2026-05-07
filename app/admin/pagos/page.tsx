@@ -550,14 +550,33 @@ export default function PagosPage() {
             </div>
           ))}
 
-          {/* Historial */}
+          {/* Historial — para Johnatan muestra food_order_payments, para otros supplier_payments */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <p className="text-white font-bold text-sm">Historial de pagos</p>
               <input type="month" value={histMonth} onChange={e => setHistMonth(e.target.value)}
                 className="input-field !py-1 !px-2 text-xs w-auto" />
             </div>
-            {suppPayments.length === 0 ? (
+            {suppFilter === 'Johnatan' ? (
+              foodOrders.filter((o: any) => o.isPaid).length === 0 ? (
+                <div className="card text-center py-4"><p className="text-white/40 text-sm">Sin pagos registrados</p></div>
+              ) : foodOrders.filter((o: any) => o.isPaid).map((o: any) => (
+                <div key={o.id} className="card flex items-center justify-between">
+                  <div>
+                    <p className="text-white font-bold text-sm">Johnatan · Food</p>
+                    <p className="text-white/40 text-xs">{o.delivery_date} · {o.items?.length || 0} productos</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-emerald-400 font-bold">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(o.total)}</p>
+                    <button onClick={async () => {
+                      if (!confirm('¿Desmarcar este pago?')) return
+                      await fetch('/api/admin/food-order-payments?order_id=' + o.id, { method: 'DELETE' })
+                      loadSupplierData()
+                    }} className="text-red-400/50 hover:text-red-400 text-xs">🗑</button>
+                  </div>
+                </div>
+              ))
+            ) : suppPayments.length === 0 ? (
               <div className="card text-center py-4"><p className="text-white/40 text-sm">Sin pagos en este mes</p></div>
             ) : suppPayments.map((p: any) => (
               <div key={p.id} className="card flex items-center justify-between">
