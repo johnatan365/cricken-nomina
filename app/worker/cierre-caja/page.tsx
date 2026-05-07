@@ -85,14 +85,14 @@ export default function CierreCajaPage() {
   const [openedDate] = useState(() => {
     const stored = localStorage.getItem(DRAFT_KEY + '_openedDate')
     if (stored) return stored
-    // Calcular fecha en Bogotá (UTC-5)
     const now    = new Date()
-    const offset = -5 * 60 // Colombia UTC-5 en minutos
+    const offset = -5 * 60
     const local  = new Date(now.getTime() + offset * 60 * 1000)
     const date   = local.toISOString().split('T')[0]
     localStorage.setItem(DRAFT_KEY + '_openedDate', date)
     return date
   })
+  const [activeTab, setActiveTab]         = useState<'form' | 'historial'>('form')
   const [expandedId, setExpandedId]       = useState<string | null>(null)
   const [draftRestored, setDraftRestored]   = useState(false)
   const [baseIsLocked, setBaseIsLocked]     = useState(false)  // true si viene de cierre anterior
