@@ -77,10 +77,19 @@ export default function PedidoFoodPage() {
 
     const res  = await fetch('/api/worker/kitchen-order?worker_id=' + w.id + '&order_type=food')
     const json = await res.json()
-    setProducts(json.products || [])
+    const prods = json.products || []
+    setProducts(prods)
 
     if (json.order) {
-      setOrder(json.order)
+      // Enriquecer items con datos del producto desde el listado ya cargado
+      const enriched = {
+        ...json.order,
+        items: (json.order.items || []).map((item: any) => ({
+          ...item,
+          product: item.product || prods.find((p: any) => p.id === item.product_id) || null
+        }))
+      }
+      setOrder(enriched)
       setTab('delivery')
     } else {
       setOrder(null)
@@ -263,15 +272,14 @@ export default function PedidoFoodPage() {
                   className="input-field" />
               </div>
               <p className="text-white/50 text-xs px-1">Ingresa la cantidad recibida de cada producto.</p>
-              {products.map((p, i: number) => {
-                const item      = order.items.find((it: OrderItem) => it.product_id === p.id)
-                const pid       = p.id
+              {order.items.map((item: OrderItem, i: number) => {
+                const pid       = item.product_id
                 const delivered = parseFloat(deliveries[pid] || '0') || 0
-                const hasDiff   = deliveries[pid] !== undefined && item !== undefined && delivered !== item.qty_requested
+                const hasDiff   = deliveries[pid] !== undefined && delivered !== item.qty_requested
                 return (
                   <div key={pid} className={`card space-y-2 border ${hasDiff ? 'border-yellow-400/30' : 'border-white/10'}`}>
                     <div className="flex items-center gap-3">
-                      <span className="flex-1 text-white text-sm">{p.name}</span>
+                      <span className="flex-1 text-white text-sm">{item.product?.name || products.find(p => p.id === pid)?.name}</span>
                       <input ref={el => { delRefs.current[i] = el }}
                         type="number" inputMode="numeric" min="0"
                         value={deliveries[pid] ?? ''}
