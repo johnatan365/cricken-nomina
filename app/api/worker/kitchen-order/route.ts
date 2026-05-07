@@ -124,7 +124,7 @@ export async function POST(req: NextRequest) {
   if (body_data.order_type === 'food') {
     return NextResponse.json({ ok: true, order, waMessage: msg })
   }
-  const waLink = \`https://wa.me/573192099123?text=\${encodeURIComponent(msg)}\`
+  const waLink = `https://wa.me/573192099123?text=${encodeURIComponent(msg)}`
   return NextResponse.json({ ok: true, order, waLink })
 }
 
