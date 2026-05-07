@@ -40,6 +40,7 @@ function loadDraft() {
 }
 function clearDraft() {
   try { localStorage.removeItem(DRAFT_KEY) } catch {}
+  try { localStorage.removeItem(DRAFT_KEY + '_openedDate') } catch {}
 }
 
 function Col({ title, children }: { title: string; children: React.ReactNode }) {
@@ -80,7 +81,18 @@ export default function CierreCajaPage() {
   const [dataLoaded, setDataLoaded]       = useState(false)
   const [saving, setSaving]               = useState(false)
   const [statusMsg, setStatusMsg]         = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
-  const [activeTab, setActiveTab]         = useState<'form' | 'historial'>('form')
+  // Fecha capturada al abrir el formulario — se guarda en localStorage para que no cambie aunque pasen las 12am
+  const [openedDate] = useState(() => {
+    const stored = localStorage.getItem(DRAFT_KEY + '_openedDate')
+    if (stored) return stored
+    // Calcular fecha en Bogotá (UTC-5)
+    const now    = new Date()
+    const offset = -5 * 60 // Colombia UTC-5 en minutos
+    const local  = new Date(now.getTime() + offset * 60 * 1000)
+    const date   = local.toISOString().split('T')[0]
+    localStorage.setItem(DRAFT_KEY + '_openedDate', date)
+    return date
+  })
   const [expandedId, setExpandedId]       = useState<string | null>(null)
   const [draftRestored, setDraftRestored]   = useState(false)
   const [baseIsLocked, setBaseIsLocked]     = useState(false)  // true si viene de cierre anterior
@@ -325,7 +337,7 @@ export default function CierreCajaPage() {
     const payload = {
       worker_id:           worker.id,
       shift,
-      register_date:       new Date().toISOString().split('T')[0],
+      register_date:       openedDate,
       opening_fund:        n(openingFund),
       puve_cash:           puveEfectivo,
       puve_transfer:       puveTransTotal,
