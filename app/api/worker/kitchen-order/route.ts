@@ -1,156 +1,53 @@
-import { createAdminClient } from '@/lib/supabase'
-import { NextRequest, NextResponse } from 'next/server'
-
-export const dynamic = 'force-dynamic'
-
-function getDeliveryDate(): string {
-  // 12am-1:59pm → mismo día
-  // 2pm-11:59pm → día siguiente
-  const now    = new Date()
-  const bogota = new Date(now.getTime() - 5 * 60 * 60 * 1000)
-  const hour   = bogota.getUTCHours()
-  const target = hour < 14
-    ? bogota                                               // antes de las 2pm → mismo día
-    : new Date(bogota.getTime() + 24 * 60 * 60 * 1000)   // 2pm en adelante → día siguiente
-  const yyyy = target.getUTCFullYear()
-  const mm   = String(target.getUTCMonth() + 1).padStart(2, '0')
-  const dd   = String(target.getUTCDate()).padStart(2, '0')
-  return `${yyyy}-${mm}-${dd}`
-}
-
-export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url)
-  const worker_id = searchParams.get('worker_id')
-  if (!worker_id) return NextResponse.json({ error: 'worker_id requerido' }, { status: 400 })
-
-  const supabase     = createAdminClient()
-  const deliveryDate = getDeliveryDate()
-
-  const orderType = searchParams.get('order_type') || 'kitchen'
-  // Food tracker: siempre fecha actual, sin corte 2pm
-  if (orderType === 'food') {
-    const todayBogota = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }))
-    deliveryDate = todayBogota.toISOString().split('T')[0]
-  }
-
-  // Buscar pedido pending sin confirmar (cualquier fecha)
-  const { data: pendingOrder, error: orderError } = await supabase
-    .from('kitchen_orders')
-    .select('id, delivery_date, status, worker_id, delivered_by, order_type')
-    .eq('status', 'pending')
-    .eq('order_type', orderType)
-    .order('submitted_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
-  // Buscar items del pedido por separado
-  let orderItems: any[] = []
-  if (pendingOrder?.id) {
-    const { data: items } = await supabase
-      .from('kitchen_order_items')
-      .select('id, product_id, qty_requested, qty_delivered, observation, price_override, product:kitchen_products(id, name, price, supplier)')
-      .eq('order_id', pendingOrder.id)
-    orderItems = items || []
-  }
-
-  const order = pendingOrder || null
-  const effectiveDeliveryDate = pendingOrder ? pendingOrder.delivery_date : deliveryDate
-
-  const { data: products } = await supabase
-    .from('kitchen_products')
-    .select('*')
-    .eq('is_active', true)
-    .eq('order_type', orderType)
-    .order('sort_order')
-
-  // Obtener nombre del worker sin join ambiguo
-  let workerName = ''
-  if (pendingOrder?.worker_id) {
-    const { data: w } = await supabase.from('workers').select('full_name').eq('id', pendingOrder.worker_id).single()
-    workerName = w?.full_name || ''
-  }
-
-  const orderWithName = pendingOrder ? { ...pendingOrder, items: orderItems, worker_name: workerName } : null
-  return NextResponse.json({ order: orderWithName, products, deliveryDate: effectiveDeliveryDate })
-}
-
-export async function POST(req: NextRequest) {
-  const body_data = await req.json()
-  const { worker_id, items, delivery_date } = body_data
-  const supabase = createAdminClient()
-
-  // Solo bloquear si hay un pedido PENDING para esa fecha
-  // Para food tracker: solo bloquear si hay pending (sin importar fecha)
-  // Para kitchen/cash: bloquear por fecha Y status pending
-  let existing = null
-  if (body_data.order_type === 'food') {
-    const { data } = await supabase.from('kitchen_orders')
-      .select('id').eq('status', 'pending').eq('order_type', 'food').maybeSingle()
-    existing = data
-  } else {
-    const { data } = await supabase.from('kitchen_orders')
-      .select('id').eq('delivery_date', delivery_date).eq('status', 'pending')
-      .eq('order_type', body_data.order_type || 'kitchen').maybeSingle()
-    existing = data
-  }
-
-  if (existing) return NextResponse.json({ error: 'Ya existe un pedido pendiente. Confirma la entrega primero.' }, { status: 409 })
-
-  let orderType = body_data.order_type || 'kitchen'
-  const { data: order, error } = await supabase
-    .from('kitchen_orders')
-    .insert({ worker_id, delivery_date, status: 'pending', order_type: orderType })
-    .select().single()
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-
-  const orderItems = items
-    .filter((i: {qty_requested: number}) => i.qty_requested > 0)
-    .map((i: {product_id: string; qty_requested: number}) => ({
-      order_id: order.id, product_id: i.product_id, qty_requested: i.qty_requested,
-    }))
-
-  if (orderItems.length > 0) await supabase.from('kitchen_order_items').insert(orderItems)
-
-  // Generar link wa.me con el pedido completo
-  const orderLabel = body_data.order_type === 'cash'
-    ? 'Pedido Caja Cricken'
-    : body_data.order_type === 'food'
-    ? 'Pedido Food Cricken'
-    : 'Pedido Cocina Cricken'
-  const lines = items
-    .filter((i: {qty_requested: number}) => i.qty_requested > 0)
-    .map((i: {name: string; qty_requested: number}) => `${i.qty_requested} - ${i.name}`)
-    .join('\n')
-  const msg = `*${orderLabel}*\nFecha pedido: ${delivery_date}\n\n${lines}`
-
-  // Food Tracker → copiar al portapapeles (grupo WhatsApp)
-  // Otros → abrir wa.me
-  if (body_data.order_type === 'food') {
-    return NextResponse.json({ ok: true, order, waMessage: msg })
-  }
-  const waLink = `https://wa.me/573192099123?text=${encodeURIComponent(msg)}`
-  return NextResponse.json({ ok: true, order, waLink })
-}
-
-export async function PATCH(req: NextRequest) {
-  const body_patch = await req.json()
-  const { order_id, deliveries, delivered_by, confirm_date } = body_patch
-  const supabase = createAdminClient()
-
-  for (const d of deliveries) {
-    const update: Record<string, unknown> = { qty_delivered: d.qty_delivered }
-    if (d.observation !== undefined) update.observation = d.observation
-    await supabase.from('kitchen_order_items')
-      .update(update)
-      .eq('order_id', order_id)
-      .eq('product_id', d.product_id)
-  }
-
-  // Si es food tracker y hay confirm_date, actualizar la delivery_date
-  const orderUpdate: Record<string, unknown> = { status: 'delivered' }
-  if (delivered_by) orderUpdate.delivered_by = delivered_by
-  if (confirm_date) orderUpdate.delivery_date = confirm_date
-  await supabase.from('kitchen_orders').update(orderUpdate).eq('id', order_id)
-  return NextResponse.json({ ok: true })
-}
+21:33:31.232 Running build in Washington, D.C., USA (East) – iad1
+21:33:31.232 Build machine configuration: 2 cores, 8 GB
+21:33:31.486 Cloning github.com/johnatan365/cricken-nomina (Branch: main, Commit: 76ce05e)
+21:33:33.191 Cloning completed: 1.705s
+21:33:34.093 Restored build cache from previous deployment (9D8KkEKqw4jxyHMC7e4xgr8nN5FR)
+21:33:34.295 Running "vercel build"
+21:33:35.006 Vercel CLI 51.6.1
+21:33:35.286 Installing dependencies...
+21:33:47.531 
+21:33:47.531 up to date in 12s
+21:33:47.532 
+21:33:47.532 151 packages are looking for funding
+21:33:47.533   run `npm fund` for details
+21:33:47.578 Detected Next.js version: 14.1.0
+21:33:47.583 Running "npm run build"
+21:33:47.690 
+21:33:47.691 > cricken-nomina@0.1.0 build
+21:33:47.691 > next build
+21:33:47.691 
+21:33:48.351    ▲ Next.js 14.1.0
+21:33:48.352 
+21:33:48.373    Creating an optimized production build ...
+21:33:52.070 Failed to compile.
+21:33:52.071 
+21:33:52.071 ./app/api/worker/kitchen-order/route.ts
+21:33:52.071 Error: 
+21:33:52.071   [31mx[0m cannot reassign to a variable declared with `const`
+21:33:52.071     ,-[[36;1;4m/vercel/path0/app/api/worker/kitchen-order/route.ts[0m:24:1]
+21:33:52.071  [2m24[0m |   if (!worker_id) return NextResponse.json({ error: 'worker_id requerido' }, { status: 400 })
+21:33:52.071  [2m25[0m | 
+21:33:52.076  [2m26[0m |   const supabase     = createAdminClient()
+21:33:52.076  [2m27[0m |   const deliveryDate = getDeliveryDate()
+21:33:52.077     : [31;1m        ^^^^^^|^^^^^[0m
+21:33:52.077     :               [31;1m`-- [31;1mconst variable was declared here[0m[0m
+21:33:52.077  [2m28[0m | 
+21:33:52.077  [2m29[0m |   const orderType = searchParams.get('order_type') || 'kitchen'
+21:33:52.077  [2m30[0m |   // Food tracker: siempre fecha actual, sin corte 2pm
+21:33:52.077  [2m31[0m |   if (orderType === 'food') {
+21:33:52.077  [2m32[0m |     const todayBogota = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }))
+21:33:52.077  [2m33[0m |     deliveryDate = todayBogota.toISOString().split('T')[0]
+21:33:52.077     : [33;1m    ^^^^^^|^^^^^[0m
+21:33:52.077     :           [33;1m`-- [33;1mcannot reassign[0m[0m
+21:33:52.077  [2m34[0m |   }
+21:33:52.077  [2m35[0m | 
+21:33:52.077  [2m36[0m |   // Buscar pedido pending sin confirmar (cualquier fecha)
+21:33:52.078     `----
+21:33:52.078 
+21:33:52.078 Import trace for requested module:
+21:33:52.078 ./app/api/worker/kitchen-order/route.ts
+21:33:52.078 
+21:33:52.091 
+21:33:52.092 > Build failed because of webpack errors
+21:33:52.122 Error: Command "npm run build" exited with 1
