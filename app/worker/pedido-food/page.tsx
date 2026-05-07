@@ -18,11 +18,13 @@ export default function PedidoFoodPage() {
   const [deliveries, setDeliveries]     = useState<Record<string, string>>({})
   const [observations, setObservations] = useState<Record<string, string>>({})
   const [deliveryDate, setDeliveryDate] = useState(() => {
-    const bogota = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }))
+    const now = new Date()
+    const bogota = new Date(now.getTime() - 5 * 60 * 60 * 1000)
     return bogota.toISOString().split('T')[0]
   })
   const [confirmDate, setConfirmDate] = useState(() => {
-    const bogota = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }))
+    const now = new Date()
+    const bogota = new Date(now.getTime() - 5 * 60 * 60 * 1000)
     return bogota.toISOString().split('T')[0]
   })
   const [loading, setLoading]           = useState(true)
