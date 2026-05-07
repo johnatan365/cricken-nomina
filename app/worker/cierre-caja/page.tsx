@@ -83,11 +83,11 @@ export default function CierreCajaPage() {
   const [statusMsg, setStatusMsg]         = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
   // Fecha capturada al abrir el formulario — se guarda en localStorage para que no cambie aunque pasen las 12am
   const [openedDate] = useState(() => {
+    if (typeof window === 'undefined') return new Date().toISOString().split('T')[0]
     const stored = localStorage.getItem(DRAFT_KEY + '_openedDate')
     if (stored) return stored
     const now    = new Date()
-    const offset = -5 * 60
-    const local  = new Date(now.getTime() + offset * 60 * 1000)
+    const local  = new Date(now.getTime() + (-5 * 60) * 60 * 1000)
     const date   = local.toISOString().split('T')[0]
     localStorage.setItem(DRAFT_KEY + '_openedDate', date)
     return date
