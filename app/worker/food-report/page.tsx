@@ -25,22 +25,13 @@ export default function FoodReportPage() {
 
     const dateFrom = `${month}-01`
     const lastDay  = new Date(parseInt(month.split('-')[0]), parseInt(month.split('-')[1]), 0).getDate()
-    const dateTo   = `${month}-${lastDay}`
+    const dateTo   = `${month}-${String(lastDay).padStart(2,'0')}`
 
-    // Pedidos entregados del mes
-    const res = await fetch(`/api/admin/kitchen-orders?order_type=food&date_from=${dateFrom}&date_to=${dateTo}`)
+    // Usar food-order-payments que ya incluye estado isPaid por pedido
+    const res  = await fetch(`/api/admin/food-order-payments?date_from=${dateFrom}&date_to=${dateTo}`)
     const json = await res.json()
-    const delivered = (json.orders || []).filter((o: any) => o.status === 'delivered')
-    const ordersWithTotal = delivered.map((o: any) => ({
-      ...o,
-      total: (o.items || []).reduce((s: number, i: any) => s + (i.qty_delivered ?? 0) * (i.price_override ?? i.product?.price ?? 0), 0)
-    }))
-    setOrders(ordersWithTotal)
-
-    // Usar food-order-payments para estado por pedido
-    const pRes = await fetch(`/api/admin/food-order-payments?date_from=${dateFrom}&date_to=${dateTo}`)
-    const pJson = await pRes.json()
-    setPayments(pJson.payments || [])
+    setOrders(json.orders || [])
+    setPayments(json.payments || [])
 
     setLoading(false)
   }, [month])
