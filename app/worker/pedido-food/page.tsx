@@ -266,8 +266,8 @@ export default function PedidoFoodPage() {
                       <span className="flex-1 text-white text-sm">{p.name}</span>
                       <input ref={el => { delRefs.current[i] = el }}
                         type="number" inputMode="numeric" min="0"
-                        value={deliveries[item.product_id] ?? ''}
-                        onChange={e => setDeliveries(prev => ({ ...prev, [item.product_id]: e.target.value }))}
+                        value={deliveries[pid] ?? ''}
+                        onChange={e => setDeliveries(prev => ({ ...prev, [pid]: e.target.value }))}
                         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); delRefs.current[i + 1]?.focus() } }}
                         placeholder="Cant."
                         className="w-20 text-center rounded-xl px-2 py-2 text-sm font-bold focus:outline-none transition-all border bg-white/10 border-white/15 text-white" />
@@ -275,10 +275,10 @@ export default function PedidoFoodPage() {
                     {hasDiff && (
                       <div>
                         <p className="text-yellow-300 text-xs mb-1">⚠ Diferencia — observación obligatoria <span className="text-red-400">*</span></p>
-                        <textarea rows={2} value={observations[item.product_id] || ''}
-                          onChange={e => setObservations(prev => ({ ...prev, [item.product_id]: e.target.value }))}
+                        <textarea rows={2} value={observations[pid] || ''}
+                          onChange={e => setObservations(prev => ({ ...prev, [pid]: e.target.value }))}
                           placeholder="Explica la diferencia..."
-                          className={`w-full bg-white/10 border rounded-xl px-3 py-2 text-white text-xs resize-none focus:outline-none transition-all ${observations[item.product_id]?.trim() ? 'border-emerald-400/40' : 'border-yellow-400/40'}`} />
+                          className={`w-full bg-white/10 border rounded-xl px-3 py-2 text-white text-xs resize-none focus:outline-none transition-all ${observations[pid]?.trim() ? 'border-emerald-400/40' : 'border-yellow-400/40'}`} />
                       </div>
                     )}
                   </div>
