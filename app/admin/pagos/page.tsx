@@ -419,15 +419,15 @@ export default function PagosPage() {
             {suppFilter === 'Johnatan' ? (<>
               <div className="card text-center" style={{borderColor:'#9FE1CB'}}>
                 <p className="text-white/40 text-xs">Te deben (Food)</p>
-                <p className="text-blue-300 font-bold text-sm">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(Object.values(suppDebts).reduce((s,d)=>s+d.food,0))}</p>
+                <p className="text-blue-300 font-bold text-sm">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(foodOrders.reduce((s:number,o:any)=>s+o.total,0))}</p>
               </div>
               <div className="card text-center" style={{borderColor:'#9FE1CB'}}>
                 <p className="text-white/40 text-xs">Ya pagado</p>
-                <p className="text-emerald-400 font-bold text-sm">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(suppPayments.reduce((s,p)=>s+p.amount,0))}</p>
+                <p className="text-emerald-400 font-bold text-sm">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(foodOrders.filter((o:any)=>o.isPaid).reduce((s:number,o:any)=>s+o.total,0))}</p>
               </div>
               <div className="card text-center">
                 <p className="text-white/40 text-xs">Pendiente</p>
-                <p className="text-red-300 font-bold text-sm">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(Math.max(0, Object.values(suppDebts).reduce((s,d)=>s+d.food,0) - suppPayments.reduce((s,p)=>s+p.amount,0)))}</p>
+                <p className="text-red-300 font-bold text-sm">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(foodOrders.filter((o:any)=>!o.isPaid).reduce((s:number,o:any)=>s+o.total,0))}</p>
               </div>
             </>) : suppFilter === 'all' ? (<>
               <div className="card text-center">
