@@ -88,6 +88,8 @@ export default function AdminCierreCajaPage() {
   const [deletingId, setDeletingId]   = useState<string | null>(null)
 
   const editingBase = editingBaseRef.current
+  const [editingDate, setEditingDate]   = useState<{id: string; date: string} | null>(null)
+
   const [detailModal, setDetailModal] = useState<{
     title: string
     items: {label: string; value: number}[]
@@ -388,7 +390,27 @@ export default function AdminCierreCajaPage() {
                     <div className="min-w-0">
                       <p className="text-white font-bold text-sm truncate">{r.worker_name}</p>
                       <p className="text-muted text-xs mt-0.5">
-                        {format(parseISO(r.register_date), "d MMM yyyy", { locale: es })}
+                        {editingDate?.id === r.id ? (
+                          <input type="date" value={editingDate.date}
+                            onChange={e => setEditingDate({ id: r.id, date: e.target.value })}
+                            className="bg-white/10 border border-white/20 rounded px-1 py-0.5 text-white text-xs"
+                            onBlur={async () => {
+                              if (editingDate.date !== r.register_date) {
+                                await fetch('/api/admin/cash-registers', {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ id: r.id, register_date: editingDate.date })
+                                })
+                                loadRegisters()
+                              }
+                              setEditingDate(null)
+                            }} autoFocus />
+                        ) : (
+                          <span onClick={() => setEditingDate({ id: r.id, date: r.register_date })}
+                            className="cursor-pointer hover:text-yellow-300 transition-colors" title="Clic para editar fecha">
+                            {format(parseISO(r.register_date), "d MMM yyyy", { locale: es })} ✏️
+                          </span>
+                        )}
                         {' · '}{SHIFT_LABELS[r.shift]}
                         {r.location_name ? ` · ${r.location_name}` : ''}
                       </p>
