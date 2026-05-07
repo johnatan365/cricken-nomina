@@ -34,7 +34,7 @@ export default function PagosPage() {
   const [suppDateTo, setSuppDateTo]     = useState(() => new Date().toISOString().split('T')[0])
   const [suppDebts, setSuppDebts]       = useState<Record<string, {kitchen: number; cash: number; food: number}>>({})
   const [suppPayments, setSuppPayments] = useState<any[]>([])
-  const [suppPayModal, setSuppPayModal] = useState<{supplier: string; orderType: 'kitchen'|'cash'|'all'; amount: number} | null>(null)
+  const [suppPayModal, setSuppPayModal] = useState<{supplier: string; orderType: 'kitchen'|'cash'|'all'|'food'; amount: number} | null>(null)
   const [suppPayNotes, setSuppPayNotes] = useState('')
   const [suppSaving, setSuppSaving]     = useState(false)
   const [histMonth, setHistMonth]       = useState(() => new Date().toISOString().slice(0,7))
