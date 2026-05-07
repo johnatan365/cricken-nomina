@@ -256,14 +256,14 @@ export default function PedidoFoodPage() {
               </div>
               <p className="text-white/50 text-xs px-1">Ingresa la cantidad recibida de cada producto.</p>
               {products.map((p, i: number) => {
-                const item = order.items.find((it: OrderItem) => it.product_id === p.id)
-                const pid  = p.id
-                const delivered = parseFloat(deliveries[item.product_id] || '0') || 0
-                const hasDiff   = deliveries[item.product_id] !== undefined && delivered !== item.qty_requested
+                const item      = order.items.find((it: OrderItem) => it.product_id === p.id)
+                const pid       = p.id
+                const delivered = parseFloat(deliveries[pid] || '0') || 0
+                const hasDiff   = deliveries[pid] !== undefined && item !== undefined && delivered !== item.qty_requested
                 return (
-                  <div key={item.product_id} className={`card space-y-2 border ${hasDiff ? 'border-yellow-400/30' : 'border-white/10'}`}>
+                  <div key={pid} className={`card space-y-2 border ${hasDiff ? 'border-yellow-400/30' : 'border-white/10'}`}>
                     <div className="flex items-center gap-3">
-                      <span className="flex-1 text-white text-sm">{item.product?.name}</span>
+                      <span className="flex-1 text-white text-sm">{p.name}</span>
                       <input ref={el => { delRefs.current[i] = el }}
                         type="number" inputMode="numeric" min="0"
                         value={deliveries[item.product_id] ?? ''}
