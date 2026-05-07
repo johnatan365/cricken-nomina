@@ -463,41 +463,89 @@ export default function PagosPage() {
             .map(([supplier, debt]) => (
             <div key={supplier} className="card space-y-3">
               <p className="text-white font-bold text-sm">{supplier}</p>
-              <div className="grid grid-cols-3 gap-2">
-                {debt.kitchen > 0 && <div className="bg-white/5 rounded-xl px-3 py-2">
-                  <p className="text-white/40 text-xs">Cocina</p>
-                  <p className="text-white font-bold text-xs">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(debt.kitchen)}</p>
-                </div>}
-                {debt.cash > 0 && <div className="bg-white/5 rounded-xl px-3 py-2">
-                  <p className="text-white/40 text-xs">Caja</p>
-                  <p className="text-white font-bold text-xs">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(debt.cash)}</p>
-                </div>}
-                {debt.food > 0 && <div className="bg-white/5 rounded-xl px-3 py-2">
-                  <p className="text-white/40 text-xs">Food</p>
-                  <p className="text-white font-bold text-xs">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(debt.food)}</p>
-                </div>}
-              </div>
-              <div className="flex items-center justify-between border-t border-white/10 pt-2">
-                <div>
-                  <p className="text-white/40 text-xs">Total</p>
-                  <p className="text-red-300 font-bold">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(debt.kitchen + debt.cash)}</p>
+              {supplier === 'Johnatan' ? (
+                <div className="space-y-2">
+                  {foodOrders.filter((o: any) => !o.isPaid).length === 0 && foodOrders.filter((o: any) => o.isPaid).length === 0 ? (
+                    <p className="text-white/40 text-xs text-center py-3">Sin pedidos en este período</p>
+                  ) : null}
+                  {foodOrders.filter((o: any) => !o.isPaid).map((o: any) => (
+                    <div key={o.id} onClick={() => setSelectedFood((prev: Set<string>) => {
+                      const next = new Set(prev)
+                      next.has(o.id) ? next.delete(o.id) : next.add(o.id)
+                      return next
+                    })} className={`flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer transition-all ${selectedFood.has(o.id) ? 'bg-yellow-400/10 border border-yellow-400/30' : 'bg-white/5 border border-white/10'}`}>
+                      <div className={`w-4 h-4 rounded flex-shrink-0 border transition-all ${selectedFood.has(o.id) ? 'bg-yellow-400 border-yellow-400' : 'border-white/30'}`} />
+                      <div className="flex-1">
+                        <p className="text-white text-xs font-semibold">{o.delivery_date} · {o.items?.length || 0} prod.</p>
+                        <p className="text-white/40 text-xs">{(o.items || []).slice(0,2).map((i: any) => i.product?.name).join(', ')}{(o.items||[]).length > 2 ? '...' : ''}</p>
+                      </div>
+                      <span className="text-white font-bold text-xs">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(o.total)}</span>
+                    </div>
+                  ))}
+                  {selectedFood.size > 0 && (
+                    <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-3 py-2">
+                      <div>
+                        <p className="text-emerald-300 text-xs">{selectedFood.size} pedido(s)</p>
+                        <p className="text-white font-bold text-sm">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(foodOrders.filter((o: any) => selectedFood.has(o.id)).reduce((s: number, o: any) => s + o.total, 0))}</p>
+                      </div>
+                      <button disabled={foodSaving} onClick={async () => {
+                        setFoodSaving(true)
+                        await fetch('/api/admin/food-order-payments', {
+                          method: 'POST', headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ order_ids: Array.from(selectedFood) })
+                        })
+                        setSelectedFood(new Set())
+                        setFoodSaving(false)
+                        loadSupplierData()
+                      }} className="btn-primary text-xs py-1.5 px-3">
+                        {foodSaving ? 'Guardando...' : 'Marcar pagado ✓'}
+                      </button>
+                    </div>
+                  )}
+                  {foodOrders.filter((o: any) => o.isPaid).map((o: any) => (
+                    <div key={o.id} className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/5 opacity-60">
+                      <div>
+                        <p className="text-white text-xs">{o.delivery_date} <span className="text-emerald-300">✓ Pagado</span></p>
+                        <p className="text-white/40 text-xs">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(o.total)}</p>
+                      </div>
+                      <button onClick={async () => {
+                        await fetch('/api/admin/food-order-payments?order_id=' + o.id, { method: 'DELETE' })
+                        loadSupplierData()
+                      }} className="text-red-400/50 hover:text-red-400 text-xs">🗑</button>
+                    </div>
+                  ))}
                 </div>
-                <div className="flex gap-2">
-                  <button onClick={() => setSuppPayModal({ supplier, orderType: supplier === 'Johnatan' ? 'food' : 'all', amount: supplier === 'Johnatan' ? debt.food : debt.kitchen + debt.cash + debt.food })}
-                    className="btn-primary text-xs py-1.5 px-3">Pagar todo</button>
-                </div>
-              </div>
-              {supplier !== 'Johnatan' && (
-                <div className="flex gap-2">
-                  <button onClick={() => setSuppPayModal({ supplier, orderType: 'kitchen', amount: debt.kitchen })}
-                    className="flex-1 py-1.5 rounded-xl text-xs font-bold bg-white/10 text-white/70 hover:bg-white/20 transition-all">
-                    Solo cocina
-                  </button>
-                  <button onClick={() => setSuppPayModal({ supplier, orderType: 'cash', amount: debt.cash })}
-                    className="flex-1 py-1.5 rounded-xl text-xs font-bold bg-white/10 text-white/70 hover:bg-white/20 transition-all">
-                    Solo caja
-                  </button>
-                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    {debt.kitchen > 0 && <div className="bg-white/5 rounded-xl px-3 py-2">
+                      <p className="text-white/40 text-xs">Cocina</p>
+                      <p className="text-white font-bold text-xs">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(debt.kitchen)}</p>
+                    </div>}
+                    {debt.cash > 0 && <div className="bg-white/5 rounded-xl px-3 py-2">
+                      <p className="text-white/40 text-xs">Caja</p>
+                      <p className="text-white font-bold text-xs">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(debt.cash)}</p>
+                    </div>}
+                  </div>
+                  <div className="flex items-center justify-between border-t border-white/10 pt-2">
+                    <div>
+                      <p className="text-white/40 text-xs">Total</p>
+                      <p className="text-red-300 font-bold">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(debt.kitchen + debt.cash)}</p>
+                    </div>
+                    <button onClick={() => setSuppPayModal({ supplier, orderType: 'all', amount: debt.kitchen + debt.cash })}
+                      className="btn-primary text-xs py-1.5 px-3">Pagar todo</button>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => setSuppPayModal({ supplier, orderType: 'kitchen', amount: debt.kitchen })}
+                      className="flex-1 py-1.5 rounded-xl text-xs font-bold bg-white/10 text-white/70 hover:bg-white/20 transition-all">
+                      Solo cocina
+                    </button>
+                    <button onClick={() => setSuppPayModal({ supplier, orderType: 'cash', amount: debt.cash })}
+                      className="flex-1 py-1.5 rounded-xl text-xs font-bold bg-white/10 text-white/70 hover:bg-white/20 transition-all">
+                      Solo caja
+                    </button>
+                  </div>
+                </>
               )}
             </div>
           ))}
