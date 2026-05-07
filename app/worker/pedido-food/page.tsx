@@ -17,8 +17,14 @@ export default function PedidoFoodPage() {
   const [quantities, setQuantities]     = useState<Record<string, number>>({})
   const [deliveries, setDeliveries]     = useState<Record<string, string>>({})
   const [observations, setObservations] = useState<Record<string, string>>({})
-  const [deliveryDate, setDeliveryDate] = useState(() => new Date().toISOString().split('T')[0])
-  const [confirmDate, setConfirmDate]     = useState(() => new Date().toISOString().split('T')[0])
+  const [deliveryDate, setDeliveryDate] = useState(() => {
+    const bogota = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }))
+    return bogota.toISOString().split('T')[0]
+  })
+  const [confirmDate, setConfirmDate] = useState(() => {
+    const bogota = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }))
+    return bogota.toISOString().split('T')[0]
+  })
   const [loading, setLoading]           = useState(true)
   const [saving, setSaving]             = useState(false)
   const [tab, setTab]                   = useState<'order'|'delivery'>('order')
