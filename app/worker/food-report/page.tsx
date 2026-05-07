@@ -14,7 +14,14 @@ export default function FoodReportPage() {
   const [orders, setOrders]       = useState<Order[]>([])
   const [payments, setPayments]   = useState<Payment[]>([])
   const [loading, setLoading]     = useState(true)
-  const [month, setMonth]         = useState(() => new Date().toISOString().slice(0, 7))
+  const [dateFrom, setDateFrom] = useState(() => {
+    const d = new Date(); d.setDate(1)
+    return d.toISOString().split('T')[0]
+  })
+  const [dateTo, setDateTo] = useState(() => {
+    const d = new Date()
+    return d.toISOString().split('T')[0]
+  })
 
   const loadData = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -23,18 +30,12 @@ export default function FoodReportPage() {
     if (!w) return
     setWorker(w)
 
-    const dateFrom = `${month}-01`
-    const lastDay  = new Date(parseInt(month.split('-')[0]), parseInt(month.split('-')[1]), 0).getDate()
-    const dateTo   = `${month}-${String(lastDay).padStart(2,'0')}`
-
-    // Usar food-order-payments que ya incluye estado isPaid por pedido
     const res  = await fetch(`/api/admin/food-order-payments?date_from=${dateFrom}&date_to=${dateTo}`)
     const json = await res.json()
     setOrders(json.orders || [])
     setPayments(json.payments || [])
-
     setLoading(false)
-  }, [month])
+  }, [dateFrom, dateTo])
 
   useEffect(() => { loadData() }, [loadData])
 
@@ -51,9 +52,64 @@ export default function FoodReportPage() {
         <p className="text-muted text-xs">{worker?.full_name}</p>
       </div>
 
-      <div>
-        <label className="label">Mes</label>
-        <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="input-field" />
+      <div className="card space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="label">Desde</label>
+            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="input-field" />
+          </div>
+          <div>
+            <label className="label">Hasta</label>
+            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="input-field" />
+          </div>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          {[
+            { label: 'Esta quincena', fn: () => {
+              const now = new Date()
+              const d = now.getDate()
+              if (d <= 15) {
+                setDateFrom(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`)
+                setDateTo(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-15`)
+              } else {
+                const last = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate()
+                setDateFrom(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-16`)
+                setDateTo(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${last}`)
+              }
+            }},
+            { label: 'Últ. quincena', fn: () => {
+              const now = new Date()
+              const d = now.getDate()
+              if (d <= 15) {
+                const prev = new Date(now.getFullYear(), now.getMonth(), 0)
+                const last = prev.getDate()
+                setDateFrom(`${prev.getFullYear()}-${String(prev.getMonth()+1).padStart(2,'0')}-16`)
+                setDateTo(`${prev.getFullYear()}-${String(prev.getMonth()+1).padStart(2,'0')}-${last}`)
+              } else {
+                setDateFrom(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`)
+                setDateTo(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-15`)
+              }
+            }},
+            { label: 'Este mes', fn: () => {
+              const now = new Date()
+              const last = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate()
+              setDateFrom(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`)
+              setDateTo(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${last}`)
+            }},
+            { label: 'Mes anterior', fn: () => {
+              const now = new Date()
+              const prev = new Date(now.getFullYear(), now.getMonth(), 0)
+              const last = prev.getDate()
+              setDateFrom(`${prev.getFullYear()}-${String(prev.getMonth()+1).padStart(2,'0')}-01`)
+              setDateTo(`${prev.getFullYear()}-${String(prev.getMonth()+1).padStart(2,'0')}-${last}`)
+            }},
+          ].map(({ label, fn }) => (
+            <button key={label} onClick={fn}
+              className="text-xs px-3 py-1.5 rounded-xl bg-white/10 text-white/70 hover:bg-white/20 transition-all font-semibold">
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Resumen */}
@@ -93,22 +149,6 @@ export default function FoodReportPage() {
         ))}
       </div>
 
-      {/* Pagos */}
-      <div>
-        <p className="text-white font-bold text-sm mb-2">Pagos registrados</p>
-        {payments.length === 0 ? (
-          <div className="card text-center py-6"><p className="text-white/40 text-sm">Sin pagos registrados este mes</p></div>
-        ) : payments.map(p => (
-          <div key={p.id} className="card flex items-center justify-between mb-2">
-            <div>
-              <p className="text-white font-bold text-sm">{cop(p.amount)}</p>
-              <p className="text-white/40 text-xs">{format(parseISO(p.paid_at), "d MMM", { locale: es })}
-                {p.notes ? ` · ${p.notes}` : ''}</p>
-            </div>
-            <span className="text-xs px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-300">✓ Pagado</span>
-          </div>
-        ))}
-      </div>
     </div>
   )
 }
