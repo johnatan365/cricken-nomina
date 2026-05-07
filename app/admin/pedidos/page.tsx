@@ -61,7 +61,8 @@ export default function AdminPedidosPage() {
       .map(i => `${i.qty_requested} - ${i.product?.name}`)
       .join('\n')
     const msg = `*${label}*\nEntrega: ${order.delivery_date}\n\n${lines}`
-    return `https://wa.me/573104122227?text=${encodeURIComponent(msg)}`
+    const phone = mainTab === 'food' ? '573024067329' : '573104122227'
+    return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`
   }
 
   // ── Drag & drop productos ──

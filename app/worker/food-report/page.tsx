@@ -86,15 +86,23 @@ export default function FoodReportPage() {
         <p className="text-white font-bold text-sm mb-2">Pedidos entregados</p>
         {orders.length === 0 ? (
           <div className="card text-center py-6"><p className="text-white/40 text-sm">Sin pedidos entregados este mes</p></div>
-        ) : orders.map(o => (
+        ) : orders.map(o => {
+          const isPaid = totalPaid >= totalOrders && totalPaid > 0
+          return (
           <div key={o.id} className="card flex items-center justify-between mb-2">
             <div>
               <p className="text-white font-bold text-sm">{format(parseISO(o.delivery_date), "d 'de' MMMM", { locale: es })}</p>
               <p className="text-white/40 text-xs">{o.items?.length || 0} productos</p>
             </div>
-            <p className="text-yellow-400 font-bold">{cop(o.total)}</p>
+            <div className="text-right">
+              <p className="text-yellow-400 font-bold">{cop(o.total)}</p>
+              <span className={`text-xs px-2 py-0.5 rounded-full ${isPaid ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300'}`}>
+                {isPaid ? '✓ Pagado' : '⏳ Pendiente'}
+              </span>
+            </div>
           </div>
-        ))}
+          )
+        })}
       </div>
 
       {/* Pagos */}

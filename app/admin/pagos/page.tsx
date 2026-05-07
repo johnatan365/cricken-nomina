@@ -406,17 +406,45 @@ export default function PagosPage() {
             </div>
           </div>
 
-          {/* Resumen totales */}
+          {/* Resumen totales — dinámico según filtro */}
           <div className="grid grid-cols-3 gap-3">
-            {['Total pendiente', 'Cocina', 'Caja'].map((label, i) => {
-              const total = Object.values(suppDebts).reduce((s, d) => s + (i === 0 ? d.kitchen + d.cash : i === 1 ? d.kitchen : d.cash), 0)
-              return (
-                <div key={label} className="card text-center">
-                  <p className="text-white/40 text-xs">{label}</p>
-                  <p className="text-red-300 font-bold text-sm">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(total)}</p>
-                </div>
-              )
-            })}
+            {suppFilter === 'Johnatan' ? (<>
+              <div className="card text-center" style={{borderColor:'#9FE1CB'}}>
+                <p className="text-white/40 text-xs">Te deben (Food)</p>
+                <p className="text-blue-300 font-bold text-sm">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(Object.values(suppDebts).reduce((s,d)=>s+d.food,0))}</p>
+              </div>
+              <div className="card text-center" style={{borderColor:'#9FE1CB'}}>
+                <p className="text-white/40 text-xs">Ya pagado</p>
+                <p className="text-emerald-400 font-bold text-sm">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(suppPayments.reduce((s,p)=>s+p.amount,0))}</p>
+              </div>
+              <div className="card text-center">
+                <p className="text-white/40 text-xs">Pendiente</p>
+                <p className="text-red-300 font-bold text-sm">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(Math.max(0, Object.values(suppDebts).reduce((s,d)=>s+d.food,0) - suppPayments.reduce((s,p)=>s+p.amount,0)))}</p>
+              </div>
+            </>) : suppFilter === 'all' ? (<>
+              <div className="card text-center">
+                <p className="text-white/40 text-xs">Debes pagar</p>
+                <p className="text-red-300 font-bold text-sm">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(Object.entries(suppDebts).filter(([s])=>s!=='Johnatan').reduce((s,[,d])=>s+d.kitchen+d.cash,0))}</p>
+              </div>
+              <div className="card text-center" style={{borderColor:'#9FE1CB'}}>
+                <p className="text-white/40 text-xs">Te deben (Food)</p>
+                <p className="text-blue-300 font-bold text-sm">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(suppDebts['Johnatan']?.food || 0)}</p>
+              </div>
+              <div className="card text-center">
+                <p className="text-white/40 text-xs">Pagado período</p>
+                <p className="text-emerald-400 font-bold text-sm">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(suppPayments.reduce((s,p)=>s+p.amount,0))}</p>
+              </div>
+            </>) : (<>
+              {['Total pendiente', 'Cocina', 'Caja'].map((label, i) => {
+                const total = Object.entries(suppDebts).filter(([s])=>s===suppFilter).reduce((s,[,d])=>s+(i===0?d.kitchen+d.cash:i===1?d.kitchen:d.cash),0)
+                return (
+                  <div key={label} className="card text-center">
+                    <p className="text-white/40 text-xs">{label}</p>
+                    <p className="text-red-300 font-bold text-sm">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(total)}</p>
+                  </div>
+                )
+              })}
+            </>)}
           </div>
 
           {/* Deudas por proveedor */}
@@ -447,20 +475,22 @@ export default function PagosPage() {
                   <p className="text-red-300 font-bold">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(debt.kitchen + debt.cash)}</p>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => setSuppPayModal({ supplier, orderType: 'all', amount: debt.kitchen + debt.cash + debt.food })}
+                  <button onClick={() => setSuppPayModal({ supplier, orderType: supplier === 'Johnatan' ? 'food' : 'all', amount: supplier === 'Johnatan' ? debt.food : debt.kitchen + debt.cash + debt.food })}
                     className="btn-primary text-xs py-1.5 px-3">Pagar todo</button>
                 </div>
               </div>
-              <div className="flex gap-2">
-                <button onClick={() => setSuppPayModal({ supplier, orderType: 'kitchen', amount: debt.kitchen })}
-                  className="flex-1 py-1.5 rounded-xl text-xs font-bold bg-white/10 text-white/70 hover:bg-white/20 transition-all">
-                  Solo cocina
-                </button>
-                <button onClick={() => setSuppPayModal({ supplier, orderType: 'cash', amount: debt.cash })}
-                  className="flex-1 py-1.5 rounded-xl text-xs font-bold bg-white/10 text-white/70 hover:bg-white/20 transition-all">
-                  Solo caja
-                </button>
-              </div>
+              {supplier !== 'Johnatan' && (
+                <div className="flex gap-2">
+                  <button onClick={() => setSuppPayModal({ supplier, orderType: 'kitchen', amount: debt.kitchen })}
+                    className="flex-1 py-1.5 rounded-xl text-xs font-bold bg-white/10 text-white/70 hover:bg-white/20 transition-all">
+                    Solo cocina
+                  </button>
+                  <button onClick={() => setSuppPayModal({ supplier, orderType: 'cash', amount: debt.cash })}
+                    className="flex-1 py-1.5 rounded-xl text-xs font-bold bg-white/10 text-white/70 hover:bg-white/20 transition-all">
+                    Solo caja
+                  </button>
+                </div>
+              )}
             </div>
           ))}
 

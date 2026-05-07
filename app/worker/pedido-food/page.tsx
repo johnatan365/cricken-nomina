@@ -112,21 +112,21 @@ export default function PedidoFoodPage() {
         setQuantities({})
         await loadData()
         setTab('delivery')
-        setModal({ type: 'success', text: '✅ Pedido enviado. Confirma la entrega cuando llegue.', onConfirm: () => setModal(null) })
+        setModal({ type: 'success', text: '✅ Pedido enviado.\n\n📋 El mensaje fue copiado al portapapeles. Pégalo en el grupo Pedidos Food de WhatsApp.', onConfirm: () => setModal(null) })
       }
     })
   }
 
   async function submitDelivery() {
     if (!order) return
-    // Validar observaciones para productos Johnatan con diferencia
+    // Validar solo productos que fueron pedidos (orderedProductIds)
     for (const pid of Array.from(orderedProductIds)) {
       const delivered = parseFloat(deliveries[pid] || '')
       const requested = orderedQtyMap[pid]
       const filled    = deliveries[pid] !== undefined && deliveries[pid] !== ''
       if (!filled) {
         const name = products.find(p => p.id === pid)?.name || pid
-        setModal({ type: 'error', text: `Debes registrar la cantidad entregada de "${name}". Si no llegó, ingresa 0 y escribe la observación.` })
+        setModal({ type: 'error', text: `Debes registrar la cantidad de "${name}". Si no llegó, ingresa 0.` })
         return
       }
       if (delivered !== requested && !observations[pid]?.trim()) {
@@ -255,7 +255,9 @@ export default function PedidoFoodPage() {
                   className="input-field" />
               </div>
               <p className="text-white/50 text-xs px-1">Ingresa la cantidad recibida de cada producto.</p>
-              {order.items.map((item: OrderItem, i: number) => {
+              {products.map((p, i: number) => {
+                const item = order.items.find((it: OrderItem) => it.product_id === p.id)
+                const pid  = p.id
                 const delivered = parseFloat(deliveries[item.product_id] || '0') || 0
                 const hasDiff   = deliveries[item.product_id] !== undefined && delivered !== item.qty_requested
                 return (
