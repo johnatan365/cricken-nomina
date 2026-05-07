@@ -117,15 +117,20 @@ export async function POST(req: NextRequest) {
     .filter((i: {qty_requested: number}) => i.qty_requested > 0)
     .map((i: {name: string; qty_requested: number}) => `${i.qty_requested} - ${i.name}`)
     .join('\n')
-  const msg    = `*${orderLabel}*\nEntrega: ${delivery_date}\n\n${lines}`
-  const waLink = `https://wa.me/573192099123?text=${encodeURIComponent(msg)}`
+  const msg = `*${orderLabel}*\nFecha pedido: ${delivery_date}\n\n${lines}`
 
+  // Food Tracker → copiar al portapapeles (grupo WhatsApp)
+  // Otros → abrir wa.me
+  if (body_data.order_type === 'food') {
+    return NextResponse.json({ ok: true, order, waMessage: msg })
+  }
+  const waLink = \`https://wa.me/573192099123?text=\${encodeURIComponent(msg)}\`
   return NextResponse.json({ ok: true, order, waLink })
 }
 
 export async function PATCH(req: NextRequest) {
   const body_patch = await req.json()
-  const { order_id, deliveries, delivered_by } = body_patch
+  const { order_id, deliveries, delivered_by, confirm_date } = body_patch
   const supabase = createAdminClient()
 
   for (const d of deliveries) {
@@ -137,6 +142,10 @@ export async function PATCH(req: NextRequest) {
       .eq('product_id', d.product_id)
   }
 
-  await supabase.from('kitchen_orders').update({ status: 'delivered', ...(delivered_by ? { delivered_by } : {}) }).eq('id', order_id)
+  // Si es food tracker y hay confirm_date, actualizar la delivery_date
+  const orderUpdate: Record<string, unknown> = { status: 'delivered' }
+  if (delivered_by) orderUpdate.delivered_by = delivered_by
+  if (confirm_date) orderUpdate.delivery_date = confirm_date
+  await supabase.from('kitchen_orders').update(orderUpdate).eq('id', order_id)
   return NextResponse.json({ ok: true })
 }

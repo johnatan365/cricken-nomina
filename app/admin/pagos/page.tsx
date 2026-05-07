@@ -32,7 +32,7 @@ export default function PagosPage() {
     const d = new Date(); d.setDate(1); return d.toISOString().split('T')[0]
   })
   const [suppDateTo, setSuppDateTo]     = useState(() => new Date().toISOString().split('T')[0])
-  const [suppDebts, setSuppDebts]       = useState<Record<string, {kitchen: number; cash: number}>>({})
+  const [suppDebts, setSuppDebts]       = useState<Record<string, {kitchen: number; cash: number; food: number}>>({})
   const [suppPayments, setSuppPayments] = useState<any[]>([])
   const [suppPayModal, setSuppPayModal] = useState<{supplier: string; orderType: 'kitchen'|'cash'|'all'; amount: number} | null>(null)
   const [suppPayNotes, setSuppPayNotes] = useState('')
@@ -42,21 +42,19 @@ export default function PagosPage() {
   const loadSupplierData = useCallback(async () => {
     setSuppLoading(true)
     // Calcular deudas por proveedor desde kitchen_orders entregados
-    const { data: orders } = await fetch(
-      `/api/admin/kitchen-orders?date_from=${suppDateFrom}&date_to=${suppDateTo}&order_type=kitchen`
-    ).then(r => r.json()).then(j => ({ data: j.orders || [] }))
+    const [kitchenRes, cashRes, foodRes] = await Promise.all([
+      fetch(`/api/admin/kitchen-orders?date_from=${suppDateFrom}&date_to=${suppDateTo}&order_type=kitchen`).then(r => r.json()),
+      fetch(`/api/admin/kitchen-orders?date_from=${suppDateFrom}&date_to=${suppDateTo}&order_type=cash`).then(r => r.json()),
+      fetch(`/api/admin/kitchen-orders?date_from=${suppDateFrom}&date_to=${suppDateTo}&order_type=food`).then(r => r.json()),
+    ])
 
-    const { data: cashOrders } = await fetch(
-      `/api/admin/kitchen-orders?date_from=${suppDateFrom}&date_to=${suppDateTo}&order_type=cash`
-    ).then(r => r.json()).then(j => ({ data: j.orders || [] }))
+    const debts: Record<string, {kitchen: number; cash: number; food: number}> = {}
 
-    const debts: Record<string, {kitchen: number; cash: number}> = {}
-
-    const calcTotal = (orders: any[], type: 'kitchen'|'cash') => {
-      orders.filter((o: any) => o.status === 'delivered').forEach((o: any) => {
+    const calcTotal = (orders: any[], type: 'kitchen'|'cash'|'food') => {
+      ;(orders || []).filter((o: any) => o.status === 'delivered').forEach((o: any) => {
         ;(o.items || []).forEach((item: any) => {
           const supplier = item.product?.supplier || 'Otro'
-          if (!debts[supplier]) debts[supplier] = { kitchen: 0, cash: 0 }
+          if (!debts[supplier]) debts[supplier] = { kitchen: 0, cash: 0, food: 0 }
           const qty   = item.qty_delivered ?? 0
           const price = item.price_override ?? item.product?.price ?? 0
           debts[supplier][type] += qty * price
@@ -64,8 +62,9 @@ export default function PagosPage() {
       })
     }
 
-    calcTotal(orders, 'kitchen')
-    calcTotal(cashOrders, 'cash')
+    calcTotal(kitchenRes.orders, 'kitchen')
+    calcTotal(cashRes.orders, 'cash')
+    calcTotal(foodRes.orders, 'food')
     setSuppDebts(debts)
 
     // Historial de pagos
@@ -190,17 +189,17 @@ export default function PagosPage() {
             {t === 'nomina' ? '👥 Nómina' : '🏭 Proveedores'}
           </button>
         ))}
-        {mainTab === 'nomina' && (
-          <div className="flex gap-1 bg-white/5 rounded-xl p-1 mt-1">
-            {(['registrar', 'historial'] as const).map(t => (
-              <button key={t} onClick={() => setActiveTab(t)}
-                className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${activeTab === t ? 'bg-white/15 text-white' : 'text-white/40 hover:text-white'}`}>
-                {t === 'registrar' ? 'Registrar Pago' : 'Historial'}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
+      {mainTab === 'nomina' && (
+        <div className="flex gap-1 bg-white/5 rounded-2xl p-1">
+          {(['registrar', 'historial'] as const).map(t => (
+            <button key={t} onClick={() => setActiveTab(t)}
+              className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all ${activeTab === t ? 'bg-white/15 text-white' : 'text-white/40 hover:text-white'}`}>
+              {t === 'registrar' ? 'Registrar Pago' : 'Historial'}
+            </button>
+          ))}
+        </div>
+      )}
 
       {status && (
         <div className={`rounded-2xl px-4 py-3 text-sm font-semibold ${
@@ -428,15 +427,19 @@ export default function PagosPage() {
             .map(([supplier, debt]) => (
             <div key={supplier} className="card space-y-3">
               <p className="text-white font-bold text-sm">{supplier}</p>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="bg-white/5 rounded-xl px-3 py-2">
+              <div className="grid grid-cols-3 gap-2">
+                {debt.kitchen > 0 && <div className="bg-white/5 rounded-xl px-3 py-2">
                   <p className="text-white/40 text-xs">Cocina</p>
-                  <p className="text-white font-bold">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(debt.kitchen)}</p>
-                </div>
-                <div className="bg-white/5 rounded-xl px-3 py-2">
+                  <p className="text-white font-bold text-xs">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(debt.kitchen)}</p>
+                </div>}
+                {debt.cash > 0 && <div className="bg-white/5 rounded-xl px-3 py-2">
                   <p className="text-white/40 text-xs">Caja</p>
-                  <p className="text-white font-bold">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(debt.cash)}</p>
-                </div>
+                  <p className="text-white font-bold text-xs">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(debt.cash)}</p>
+                </div>}
+                {debt.food > 0 && <div className="bg-white/5 rounded-xl px-3 py-2">
+                  <p className="text-white/40 text-xs">Food</p>
+                  <p className="text-white font-bold text-xs">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(debt.food)}</p>
+                </div>}
               </div>
               <div className="flex items-center justify-between border-t border-white/10 pt-2">
                 <div>
@@ -444,7 +447,7 @@ export default function PagosPage() {
                   <p className="text-red-300 font-bold">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(debt.kitchen + debt.cash)}</p>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => setSuppPayModal({ supplier, orderType: 'all', amount: debt.kitchen + debt.cash })}
+                  <button onClick={() => setSuppPayModal({ supplier, orderType: 'all', amount: debt.kitchen + debt.cash + debt.food })}
                     className="btn-primary text-xs py-1.5 px-3">Pagar todo</button>
                 </div>
               </div>

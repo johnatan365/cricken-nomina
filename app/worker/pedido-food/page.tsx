@@ -18,6 +18,7 @@ export default function PedidoFoodPage() {
   const [deliveries, setDeliveries]     = useState<Record<string, string>>({})
   const [observations, setObservations] = useState<Record<string, string>>({})
   const [deliveryDate, setDeliveryDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [confirmDate, setConfirmDate]     = useState(() => new Date().toISOString().split('T')[0])
   const [loading, setLoading]           = useState(true)
   const [saving, setSaving]             = useState(false)
   const [tab, setTab]                   = useState<'order'|'delivery'>('order')
@@ -101,7 +102,12 @@ export default function PedidoFoodPage() {
         const json = await res.json()
         setSaving(false)
         if (!res.ok) { setModal({ type: 'error', text: json.error || 'Error al enviar' }); return }
-        if (json.waLink) window.open(json.waLink, '_blank')
+        // Copiar mensaje al portapapeles para pegarlo en el grupo de WhatsApp
+        if (json.waMessage) {
+          try {
+            await navigator.clipboard.writeText(json.waMessage)
+          } catch {}
+        }
         localStorage.removeItem(DRAFT_KEY + '_qty')
         setQuantities({})
         await loadData()
@@ -140,7 +146,7 @@ export default function PedidoFoodPage() {
 
     const res = await fetch('/api/worker/kitchen-order', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ order_id: order.id, deliveries: dels, delivered_by: worker?.id }),
+      body: JSON.stringify({ order_id: order.id, deliveries: dels, delivered_by: worker?.id, confirm_date: confirmDate }),
     })
     setSaving(false)
     if (res.ok) {
@@ -201,13 +207,6 @@ export default function PedidoFoodPage() {
             </div>
           ) : (
             <>
-              {/* Fecha de entrega — la elige la trabajadora */}
-              <div className="card">
-                <label className="label">Fecha de entrega</label>
-                <input type="date" value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)}
-                  className="input-field" />
-              </div>
-
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 text-sm">🔍</span>
                 <input type="text" value={search} onChange={e => setSearch(e.target.value)}
@@ -250,6 +249,11 @@ export default function PedidoFoodPage() {
             <div className="card text-center py-8"><p className="text-3xl mb-2">📋</p><p className="text-white/50 text-sm">Primero haz el pedido</p></div>
           ) : (
             <div className="space-y-2">
+              <div className="card">
+                <label className="label">¿En qué fecha te lo entregaron?</label>
+                <input type="date" value={confirmDate} onChange={e => setConfirmDate(e.target.value)}
+                  className="input-field" />
+              </div>
               <p className="text-white/50 text-xs px-1">Ingresa la cantidad recibida de cada producto.</p>
               {order.items.map((item: OrderItem, i: number) => {
                 const delivered = parseFloat(deliveries[item.product_id] || '0') || 0
