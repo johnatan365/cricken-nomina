@@ -117,12 +117,17 @@ export default function PedidoPage() {
         const json = await res.json()
         setSaving(false)
         if (!res.ok) { showModal('error', json.error || 'Error al enviar'); return }
+        // Copiar mensaje al portapapeles
+        if (json.waMessage) {
+          try { await navigator.clipboard.writeText(json.waMessage) } catch {}
+        }
+        // Abrir WhatsApp
         if (json.waLink) window.open(json.waLink, '_blank')
         localStorage.removeItem(DRAFT_KEY + '_qty')
         setQuantities({})
         await loadData()
         setTab('delivery')
-        showModal('success', '✅ Pedido enviado. Cuando llegue confirma la entrega aquí.', {
+        showModal('success', '✅ Pedido enviado al administrador por WhatsApp.\n\n📋 El mensaje también fue copiado al portapapeles.', {
           onConfirm: () => setModal(null)
         })
       }}

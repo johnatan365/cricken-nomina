@@ -97,7 +97,12 @@ export default function WorkerLayout({ children }: { children: React.ReactNode }
             </Link>
           ))}
         </nav>
-        <div className="p-4 border-t border-white/10">
+        <div className="p-4 border-t border-white/10 space-y-1">
+          <Link href="/worker/cuenta"
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold transition-all whitespace-nowrap
+              ${pathname === '/worker/cuenta' ? 'bg-yellow-400 text-purple-900' : 'text-white/50 hover:bg-white/10 hover:text-white'}`}>
+            <span>⚙️</span> Mi cuenta
+          </Link>
           <button onClick={handleLogout}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold text-white/50 hover:bg-white/10 hover:text-white transition-all whitespace-nowrap">
             <span>🚪</span> Cerrar sesión
@@ -135,7 +140,12 @@ export default function WorkerLayout({ children }: { children: React.ReactNode }
             </Link>
           ))}
         </nav>
-        <div className="p-4 border-t border-white/10">
+        <div className="p-4 border-t border-white/10 space-y-1">
+          <Link href="/worker/cuenta" onClick={() => setMobileOpen(false)}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold transition-all
+              ${pathname === '/worker/cuenta' ? 'bg-yellow-400 text-purple-900' : 'text-white/50 hover:bg-white/10 hover:text-white'}`}>
+            <span>⚙️</span> Mi cuenta
+          </Link>
           <button onClick={handleLogout}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold text-white/50 hover:bg-white/10 hover:text-white transition-all">
             <span>🚪</span> Cerrar sesión
