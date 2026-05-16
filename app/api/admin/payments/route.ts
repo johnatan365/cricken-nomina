@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
 
     let paymentsQuery = supabase
       .from('payments')
-      .select('*, workers(*)')
+      .select('*, workers(*), time_logs(*)')
       .order('paid_at', { ascending: false })
       .limit(100)
 

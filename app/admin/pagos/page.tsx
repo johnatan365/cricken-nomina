@@ -15,7 +15,7 @@ export default function PagosPage() {
   const [mainTab, setMainTab]     = useState<'nomina'|'proveedores'>('nomina')
   const [activeTab, setActiveTab] = useState<'registrar' | 'historial'>('registrar')
   const [workers, setWorkers] = useState<WorkerPending[]>([])
-  const [payments, setPayments] = useState<(Payment & { workers: Worker })[]>([])
+  const [payments, setPayments] = useState<(Payment & { workers: Worker; time_logs: TimeLog[] })[]>([])
   const [allWorkers, setAllWorkers] = useState<Worker[]>([])
   const [selectedLogs, setSelectedLogs] = useState<Set<string>>(new Set())
   const [paymentNotes, setPaymentNotes] = useState('')
@@ -24,6 +24,8 @@ export default function PagosPage() {
   const [status, setStatus] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
   const [histDateFrom, setHistDateFrom] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'))
   const [histDateTo, setHistDateTo] = useState(format(endOfMonth(new Date()), 'yyyy-MM-dd'))
+  const [expandedWorkers, setExpandedWorkers] = useState<Set<string>>(new Set())
+  const [expandedPayments, setExpandedPayments] = useState<Set<string>>(new Set())
 
   // Estados proveedores
   const [suppLoading, setSuppLoading]   = useState(false)
@@ -330,30 +332,120 @@ export default function PagosPage() {
 
           {filteredPayments.length === 0 ? (
             <div className="text-center py-10 text-white/40">No hay pagos en este periodo</div>
-          ) : filteredPayments.map((p, i) => (
-            <div key={p.id} className="bg-white/10 rounded-2xl border border-white/10 p-4 flex justify-between items-center stagger-item" style={{ animationDelay: `${i * 40}ms` }}>
-              <div>
-                <p className="font-semibold text-white text-sm">{p.workers?.full_name}</p>
-                <p className="text-white/40 text-xs">
-                  {format(parseISO(p.paid_at), 'EEEE d MMM yyyy', { locale: es })}
-                </p>
-                {p.notes && <p className="text-white/40 text-xs mt-0.5">{p.notes}</p>}
-              </div>
-              <div className="flex items-center gap-3">
-                <p className="font-bold text-emerald-300 text-lg">{formatCOP(p.amount)}</p>
-                <button onClick={async () => {
-                  if (!confirm('Eliminar este pago? Los registros quedarán como pendientes.')) return
-                  const res = await fetch('/api/admin/payments?id=' + p.id, { method: 'DELETE' })
-                  if (res.ok) {
-                    setStatus({ type: 'success', msg: 'Pago eliminado' })
-                    await loadData()
-                  }
-                }} className="text-white/30 hover:text-red-400 text-xs px-2 py-1 rounded-lg hover:bg-red-400/10 transition-all">
-                  Eliminar
-                </button>
-              </div>
-            </div>
-          ))}
+          ) : (() => {
+            // Agrupar pagos por trabajador
+            const byWorker: Record<string, { worker: typeof filteredPayments[0]['workers']; pays: typeof filteredPayments }> = {}
+            filteredPayments.forEach((p) => {
+              const wid = p.worker_id
+              if (!byWorker[wid]) byWorker[wid] = { worker: p.workers, pays: [] }
+              byWorker[wid].pays.push(p)
+            })
+            return Object.entries(byWorker).map(([wid, { worker, pays }]) => {
+              const workerTotal = pays.reduce((s, p) => s + p.amount, 0)
+              const isWorkerOpen = expandedWorkers.has(wid)
+              return (
+                <div key={wid} className="bg-white/10 rounded-2xl border border-white/10 overflow-hidden">
+                  {/* Cabecera trabajador */}
+                  <button
+                    onClick={() => setExpandedWorkers(prev => {
+                      const next = new Set(prev)
+                      next.has(wid) ? next.delete(wid) : next.add(wid)
+                      return next
+                    })}
+                    className="w-full flex items-center justify-between p-4 hover:bg-white/5 transition-all"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-300 text-xs font-bold flex-shrink-0">
+                        {worker?.full_name?.split(' ').slice(0,2).map((n: string) => n[0]).join('')}
+                      </div>
+                      <div className="text-left">
+                        <p className="font-semibold text-white text-sm">{worker?.full_name}</p>
+                        <p className="text-white/40 text-xs">{pays.length} pago{pays.length !== 1 ? 's' : ''}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <p className="font-bold text-emerald-300">{formatCOP(workerTotal)}</p>
+                      <span className={`text-white/40 text-xs transition-transform duration-200 ${isWorkerOpen ? 'rotate-180' : ''}`}>▾</span>
+                    </div>
+                  </button>
+
+                  {/* Lista de pagos del trabajador */}
+                  {isWorkerOpen && (
+                    <div className="border-t border-white/10">
+                      {pays.map((p) => {
+                        const isPayOpen = expandedPayments.has(p.id)
+                        const logs = (p.time_logs || []).sort((a: TimeLog, b: TimeLog) =>
+                          new Date(a.clock_in).getTime() - new Date(b.clock_in).getTime()
+                        )
+                        return (
+                          <div key={p.id} className="border-b border-white/5 last:border-b-0">
+                            {/* Fila del pago */}
+                            <button
+                              onClick={() => setExpandedPayments(prev => {
+                                const next = new Set(prev)
+                                next.has(p.id) ? next.delete(p.id) : next.add(p.id)
+                                return next
+                              })}
+                              className="w-full flex items-center justify-between px-4 py-3 pl-8 bg-white/5 hover:bg-white/10 transition-all"
+                            >
+                              <div className="text-left">
+                                <p className="text-white text-sm">
+                                  {format(parseISO(p.paid_at), "EEEE d 'de' MMMM", { locale: es })}
+                                </p>
+                                <p className="text-white/40 text-xs">{logs.length} día{logs.length !== 1 ? 's' : ''} trabajado{logs.length !== 1 ? 's' : ''}</p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <p className="font-semibold text-emerald-300 text-sm">{formatCOP(p.amount)}</p>
+                                <span className={`text-white/40 text-xs transition-transform duration-200 ${isPayOpen ? 'rotate-180' : ''}`}>▾</span>
+                              </div>
+                            </button>
+
+                            {/* Desglose de días */}
+                            {isPayOpen && (
+                              <div className="bg-white/3">
+                                {logs.map((log: TimeLog) => (
+                                  <div key={log.id} className="flex items-center justify-between px-4 py-2 pl-12 border-t border-white/5">
+                                    <div>
+                                      <p className="text-white/80 text-xs font-medium">
+                                        {format(parseISO(log.clock_in), "EEE d MMM", { locale: es })}
+                                      </p>
+                                      <p className="text-white/40 text-xs">
+                                        {format(parseISO(log.clock_in), 'HH:mm')} - {log.clock_out ? format(parseISO(log.clock_out), 'HH:mm') : '-'}
+                                        {' · '}{formatHours(log.hours_worked || 0)}
+                                      </p>
+                                    </div>
+                                    <p className="text-yellow-300/80 text-xs font-semibold">{formatCOP(log.amount_earned || 0)}</p>
+                                  </div>
+                                ))}
+                                {/* Footer del pago */}
+                                <div className="flex justify-between items-center px-4 py-2 pl-12 border-t border-white/10 bg-white/5">
+                                  <p className="text-white/40 text-xs">{logs.length} día{logs.length !== 1 ? 's' : ''} · {logs.reduce((s: number, l: TimeLog) => s + (l.hours_worked || 0), 0).toFixed(1)}h</p>
+                                  <div className="flex items-center gap-3">
+                                    <p className="text-emerald-300 text-xs font-bold">{formatCOP(p.amount)}</p>
+                                    <button onClick={async (e) => {
+                                      e.stopPropagation()
+                                      if (!confirm('Eliminar este pago? Los registros quedarán como pendientes.')) return
+                                      const res = await fetch('/api/admin/payments?id=' + p.id, { method: 'DELETE' })
+                                      if (res.ok) {
+                                        setStatus({ type: 'success', msg: 'Pago eliminado' })
+                                        await loadData()
+                                      }
+                                    }} className="text-white/30 hover:text-red-400 text-xs px-2 py-1 rounded-lg hover:bg-red-400/10 transition-all">
+                                      Eliminar
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )
+            })
+          })()}
         </div>
       )}
       {/* ── TAB PROVEEDORES ── */}
