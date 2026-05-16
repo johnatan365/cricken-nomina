@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
 
     let paymentsQuery = supabase
       .from('payments')
-      .select('*, workers(*), time_logs(*)')
+      .select('*, workers(*)')
       .order('paid_at', { ascending: false })
       .limit(100)
 
@@ -25,7 +25,24 @@ export async function GET(req: NextRequest) {
 
     const { data: payments } = await paymentsQuery
 
-    return NextResponse.json({ pendingLogs: pendingLogs || [], payments: payments || [] })
+    // Traer los time_logs pagados y asociarlos manualmente por payment_id
+    const paymentIds = (payments || []).map((p: any) => p.id)
+    let paidLogs: any[] = []
+    if (paymentIds.length > 0) {
+      const { data: logsData } = await supabase
+        .from('time_logs')
+        .select('*')
+        .in('payment_id', paymentIds)
+        .order('clock_in')
+      paidLogs = logsData || []
+    }
+
+    const paymentsWithLogs = (payments || []).map((p: any) => ({
+      ...p,
+      time_logs: paidLogs.filter((l: any) => l.payment_id === p.id)
+    }))
+
+    return NextResponse.json({ pendingLogs: pendingLogs || [], payments: paymentsWithLogs })
   } catch {
     return NextResponse.json({ error: 'Error interno' }, { status: 500 })
   }
