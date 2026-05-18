@@ -70,12 +70,32 @@ export default function PagosPage() {
     calcTotal(kitchenRes.orders, 'kitchen')
     calcTotal(cashRes.orders, 'cash')
     calcTotal(foodRes.orders, 'food')
-    setSuppDebts(debts)
-
     // Historial de pagos — filtrado por el mismo rango de fechas
     const paymentsRes = await fetch(`/api/admin/supplier-payments?date_from=${suppDateFrom}&date_to=${suppDateTo}`)
       .then(r => r.json())
-    setSuppPayments(paymentsRes.payments || [])
+    const existingPayments: any[] = paymentsRes.payments || []
+    setSuppPayments(existingPayments)
+
+    // Restar pagos ya registrados de las deudas
+    existingPayments.forEach((p: any) => {
+      if (!debts[p.supplier]) return
+      const paid = p.amount
+      if (p.order_type === 'kitchen') {
+        debts[p.supplier].kitchen = Math.max(0, debts[p.supplier].kitchen - paid)
+      } else if (p.order_type === 'cash') {
+        debts[p.supplier].cash = Math.max(0, debts[p.supplier].cash - paid)
+      } else {
+        // all: descontar proporcionalmente kitchen y cash
+        const total = debts[p.supplier].kitchen + debts[p.supplier].cash
+        if (total > 0) {
+          const ratioK = debts[p.supplier].kitchen / total
+          const ratioC = debts[p.supplier].cash / total
+          debts[p.supplier].kitchen = Math.max(0, debts[p.supplier].kitchen - paid * ratioK)
+          debts[p.supplier].cash    = Math.max(0, debts[p.supplier].cash    - paid * ratioC)
+        }
+      }
+    })
+    setSuppDebts(debts)
 
     // Pedidos food para selección individual
     const foodOrdersRes = await fetch(`/api/admin/food-order-payments?date_from=${suppDateFrom}&date_to=${suppDateTo}`)
