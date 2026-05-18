@@ -82,6 +82,82 @@ export function exportAdminReport(logs: TimeLog[], workers: Worker[]) {
   XLSX.writeFile(wb, `Nomina_Cricken_${format(new Date(), 'yyyy-MM-dd')}.xlsx`)
 }
 
+// ── Tipos para pedidos ──
+type OrderItemExport = { product: { name: string; price: number; supplier: string } | null; qty_delivered: number | null; price_override: number | null }
+type OrderExport = { id: string; delivery_date: string; status: string; worker: { full_name: string } | null; items: OrderItemExport[] }
+
+function orderTotalExport(items: OrderItemExport[]) {
+  return items.reduce((s, i) => {
+    const qty   = i.qty_delivered ?? 0
+    const price = i.price_override ?? i.product?.price ?? 0
+    return s + qty * price
+  }, 0)
+}
+
+export function exportPedidosReport(
+  cocina: OrderExport[],
+  caja: OrderExport[],
+  food: OrderExport[],
+  dateFrom: string,
+  dateTo: string
+) {
+  const periodo = `${dateFrom} al ${dateTo}`
+  const wb = XLSX.utils.book_new()
+
+  function buildSheet(orders: OrderExport[], label: string) {
+    const rows: (string | number)[][] = [
+      [label],
+      [`Período: ${periodo}`],
+      [],
+      ['Fecha entrega', 'Trabajador', 'Estado', 'Total pedido'],
+    ]
+    let subtotal = 0
+    for (const o of orders) {
+      const isDelivered = o.status === 'delivered'
+      const total = isDelivered ? orderTotalExport(o.items || []) : null
+      if (total !== null) subtotal += total
+      rows.push([
+        o.delivery_date,
+        o.worker?.full_name ?? '—',
+        isDelivered ? 'Entregado' : 'Pendiente',
+        total !== null ? total : '—',
+      ])
+    }
+    rows.push([])
+    rows.push([`TOTAL ${label.toUpperCase()}`, '', '', subtotal])
+    const ws = XLSX.utils.aoa_to_sheet(rows)
+    ws['!cols'] = [{ wch: 16 }, { wch: 22 }, { wch: 14 }, { wch: 18 }]
+    return { ws, subtotal }
+  }
+
+  const { ws: wsCocina, subtotal: totCocina } = buildSheet(cocina, 'Cocina')
+  const { ws: wsCaja,   subtotal: totCaja   } = buildSheet(caja,   'Caja')
+  const { ws: wsFood,   subtotal: totFood   } = buildSheet(food,   'Food')
+
+  // Hoja Resumen
+  const resumen: (string | number)[][] = [
+    ['RESUMEN GENERAL — CRICKEN NÓMINA'],
+    [`Período: ${periodo}`],
+    [],
+    ['Módulo', 'Pedidos entregados', 'Total'],
+    ['Cocina', cocina.filter(o => o.status === 'delivered').length, totCocina],
+    ['Caja',   caja.filter(o => o.status === 'delivered').length,   totCaja],
+    ['Food',   food.filter(o => o.status === 'delivered').length,   totFood],
+    [],
+    ['TOTAL GENERAL', '', totCocina + totCaja + totFood],
+  ]
+  const wsResumen = XLSX.utils.aoa_to_sheet(resumen)
+  wsResumen['!cols'] = [{ wch: 18 }, { wch: 22 }, { wch: 18 }]
+
+  XLSX.utils.book_append_sheet(wb, wsResumen, '📊 Resumen')
+  XLSX.utils.book_append_sheet(wb, wsCocina,  '🍳 Cocina')
+  XLSX.utils.book_append_sheet(wb, wsCaja,    '🗂 Caja')
+  XLSX.utils.book_append_sheet(wb, wsFood,    '🍔 Food')
+
+  const filename = `Informe_Pedidos_${dateFrom}_${dateTo}.xlsx`
+  XLSX.writeFile(wb, filename)
+}
+
 export function exportPayments(payments: Payment[]) {
   const data = payments.map((p) => ({
     Trabajador: p.workers?.full_name || '—',
