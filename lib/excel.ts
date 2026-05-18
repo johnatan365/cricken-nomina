@@ -101,14 +101,10 @@ export function exportPedidosReport(
   dateFrom: string,
   dateTo: string
 ) {
-  const periodo = `${dateFrom} al ${dateTo}`
   const wb = XLSX.utils.book_new()
 
-  function buildSheet(orders: OrderExport[], label: string) {
+  function buildSheet(orders: OrderExport[]) {
     const rows: (string | number)[][] = [
-      [label],
-      [`Período: ${periodo}`],
-      [],
       ['Fecha entrega', 'Trabajador', 'Estado', 'Total pedido'],
     ]
     let subtotal = 0
@@ -123,22 +119,18 @@ export function exportPedidosReport(
         total !== null ? total : '—',
       ])
     }
-    rows.push([])
-    rows.push([`TOTAL ${label.toUpperCase()}`, '', '', subtotal])
+    rows.push(['TOTAL', '', '', subtotal])
     const ws = XLSX.utils.aoa_to_sheet(rows)
     ws['!cols'] = [{ wch: 16 }, { wch: 22 }, { wch: 14 }, { wch: 18 }]
     return { ws, subtotal }
   }
 
-  const { ws: wsCocina, subtotal: totCocina } = buildSheet(cocina, 'Cocina')
-  const { ws: wsCaja,   subtotal: totCaja   } = buildSheet(caja,   'Caja')
-  const { ws: wsFood,   subtotal: totFood   } = buildSheet(food,   'Food')
+  const { ws: wsCocina, subtotal: totCocina } = buildSheet(cocina)
+  const { ws: wsCaja,   subtotal: totCaja   } = buildSheet(caja)
+  const { ws: wsFood,   subtotal: totFood   } = buildSheet(food)
 
   // Hoja Resumen
   const resumen: (string | number)[][] = [
-    ['RESUMEN GENERAL — CRICKEN NÓMINA'],
-    [`Período: ${periodo}`],
-    [],
     ['Módulo', 'Pedidos entregados', 'Total'],
     ['Cocina', cocina.filter(o => o.status === 'delivered').length, totCocina],
     ['Caja',   caja.filter(o => o.status === 'delivered').length,   totCaja],
