@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { exportPedidosReport } from '@/lib/excel'
 
 type Product = { id: string; name: string; price: number; supplier: string; is_active: boolean; sort_order: number }
 type OrderItem = { id: string; product_id: string; qty_requested: number; qty_delivered: number | null; observation: string | null; price_override: number | null; product: Product }
@@ -28,9 +29,33 @@ export default function AdminPedidosPage() {
   const [savingProduct, setSavingProduct] = useState(false)
   const dragItem   = useRef<number | null>(null)
   const dragOver   = useRef<number | null>(null)
+  const [downloading, setDownloading] = useState(false)
 
   const showMsg = (type: 'success'|'error', text: string) => {
     setMsg({ type, text }); setTimeout(() => setMsg(null), 4000)
+  }
+
+  async function handleExport() {
+    setDownloading(true)
+    try {
+      const mkParams = (tab: string) => new URLSearchParams({ date_from: dateFrom, date_to: dateTo, order_type: tab }).toString()
+      const [rCocina, rCaja, rFood] = await Promise.all([
+        fetch('/api/admin/kitchen-orders?' + mkParams('kitchen')).then(r => r.json()),
+        fetch('/api/admin/kitchen-orders?' + mkParams('cash')).then(r => r.json()),
+        fetch('/api/admin/kitchen-orders?' + mkParams('food')).then(r => r.json()),
+      ])
+      exportPedidosReport(
+        rCocina.orders || [],
+        rCaja.orders   || [],
+        rFood.orders   || [],
+        dateFrom,
+        dateTo
+      )
+    } catch {
+      showMsg('error', 'Error al generar el Excel')
+    } finally {
+      setDownloading(false)
+    }
   }
 
   const loadOrders = useCallback(async () => {
@@ -252,15 +277,24 @@ export default function AdminPedidosPage() {
 
       {activeTab === 'orders' && (
         <div className="space-y-4">
-          <div className="card grid grid-cols-3 gap-3">
-            <div><label className="label">Desde</label><input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="input-field" /></div>
-            <div><label className="label">Hasta</label><input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="input-field" /></div>
-            <div><label className="label">Proveedor</label>
-              <select value={supplierFilter} onChange={e => setSupplierFilter(e.target.value)} className="input-field">
-                <option value="all">Todos</option>
-                {suppliers.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
+          <div className="card space-y-3">
+            <div className="grid grid-cols-3 gap-3">
+              <div><label className="label">Desde</label><input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="input-field" /></div>
+              <div><label className="label">Hasta</label><input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="input-field" /></div>
+              <div><label className="label">Proveedor</label>
+                <select value={supplierFilter} onChange={e => setSupplierFilter(e.target.value)} className="input-field">
+                  <option value="all">Todos</option>
+                  {suppliers.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
             </div>
+            <button
+              onClick={handleExport}
+              disabled={downloading}
+              className="w-full py-2.5 rounded-xl text-sm font-bold bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 hover:bg-emerald-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {downloading ? '⏳ Generando Excel...' : '📥 Descargar Informe Excel (Cocina + Caja + Food)'}
+            </button>
           </div>
 
           {loading ? <div className="card text-center py-10"><p className="text-white/40">Cargando...</p></div>
