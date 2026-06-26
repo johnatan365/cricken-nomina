@@ -94,7 +94,7 @@ function orderTotalExport(items: OrderItemExport[]) {
   }, 0)
 }
 
-// Construye una hoja pivote: filas = productos, columnas = fechas, celda = "pedido / entregado"
+// Construye una hoja pivote: filas = fechas, columnas = productos, celda = "pedido / entregado"
 function buildProductsByDaySheet(orders: OrderExport[]) {
   // Fechas únicas ordenadas
   const dates = [...new Set(orders.map(o => o.delivery_date))].sort()
@@ -124,14 +124,14 @@ function buildProductsByDaySheet(orders: OrderExport[]) {
     try { return format(parseISOLocal(d), 'dd/MM') } catch { return d }
   }
 
-  const header = ['Producto', ...dates.map(fmtDate), 'Total']
+  const header = ['Fecha', ...productOrder.map(key => productNames[key]), 'Total']
   const rows: (string | number)[][] = [header]
 
-  for (const key of productOrder) {
-    const row: (string | number)[] = [productNames[key]]
+  for (const d of dates) {
+    const row: (string | number)[] = [fmtDate(d)]
     let totalReq = 0
     let totalDel = 0
-    for (const d of dates) {
+    for (const key of productOrder) {
       const cell = data[key][d]
       if (!cell || (cell.req === 0 && cell.del === 0)) {
         row.push('—')
@@ -141,30 +141,30 @@ function buildProductsByDaySheet(orders: OrderExport[]) {
         totalDel += cell.del
       }
     }
-    row.push(`${totalReq} / ${totalDel}`)
+    row.push(totalReq === 0 && totalDel === 0 ? '—' : `${totalReq} / ${totalDel}`)
     rows.push(row)
   }
 
-  // Fila de totales por día al final
-  const totalsRow: (string | number)[] = ['Total día']
+  // Fila de totales por producto al final
+  const totalsRow: (string | number)[] = ['Total producto']
   let grandReq = 0
   let grandDel = 0
-  for (const d of dates) {
-    let dReq = 0
-    let dDel = 0
-    for (const key of productOrder) {
+  for (const key of productOrder) {
+    let pReq = 0
+    let pDel = 0
+    for (const d of dates) {
       const cell = data[key][d]
-      if (cell) { dReq += cell.req; dDel += cell.del }
+      if (cell) { pReq += cell.req; pDel += cell.del }
     }
-    totalsRow.push(dReq === 0 && dDel === 0 ? '—' : `${dReq} / ${dDel}`)
-    grandReq += dReq
-    grandDel += dDel
+    totalsRow.push(pReq === 0 && pDel === 0 ? '—' : `${pReq} / ${pDel}`)
+    grandReq += pReq
+    grandDel += pDel
   }
   totalsRow.push(`${grandReq} / ${grandDel}`)
   rows.push(totalsRow)
 
   const ws = XLSX.utils.aoa_to_sheet(rows)
-  ws['!cols'] = [{ wch: 26 }, ...dates.map(() => ({ wch: 10 })), { wch: 12 }]
+  ws['!cols'] = [{ wch: 12 }, ...productOrder.map(() => ({ wch: 18 })), { wch: 12 }]
   return ws
 }
 
