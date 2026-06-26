@@ -99,10 +99,11 @@ function buildProductsByDaySheet(orders: OrderExport[]) {
   // Fechas únicas ordenadas
   const dates = [...new Set(orders.map(o => o.delivery_date))].sort()
 
-  // Acumular cantidades entregadas por producto y fecha
+  // Acumular cantidades entregadas y dinero gastado por producto y fecha
   const productNames: Record<string, string> = {}
   const productOrder: string[] = [] // mantiene primer orden de aparición
-  const data: Record<string, Record<string, number>> = {} // productKey -> date -> qty_delivered
+  const data: Record<string, Record<string, number>> = {}  // productKey -> date -> qty_delivered
+  const spent: Record<string, number> = {} // productKey -> total $ gastado en el periodo
 
   for (const o of orders) {
     for (const item of (o.items || [])) {
@@ -112,9 +113,14 @@ function buildProductsByDaySheet(orders: OrderExport[]) {
         productNames[key] = item.product.name
         productOrder.push(key)
       }
+      const qty   = item.qty_delivered ?? 0
+      const price = item.price_override ?? item.product.price ?? 0
+
       if (!data[key]) data[key] = {}
       if (!data[key][o.delivery_date]) data[key][o.delivery_date] = 0
-      data[key][o.delivery_date] += item.qty_delivered ?? 0
+      data[key][o.delivery_date] += qty
+
+      spent[key] = (spent[key] ?? 0) + qty * price
     }
   }
 
@@ -137,7 +143,7 @@ function buildProductsByDaySheet(orders: OrderExport[]) {
     rows.push(row)
   }
 
-  // Fila de totales por producto al final
+  // Fila de totales por producto (cantidades) al final
   const totalsRow: (string | number)[] = ['Total producto']
   let grandTotal = 0
   for (const key of productOrder) {
@@ -148,6 +154,17 @@ function buildProductsByDaySheet(orders: OrderExport[]) {
   }
   totalsRow.push(grandTotal)
   rows.push(totalsRow)
+
+  // Fila de dinero gastado por producto en el periodo
+  const spentRow: (string | number)[] = ['Total gastado ($)']
+  let grandSpent = 0
+  for (const key of productOrder) {
+    const s = spent[key] ?? 0
+    spentRow.push(s)
+    grandSpent += s
+  }
+  spentRow.push(grandSpent)
+  rows.push(spentRow)
 
   const ws = XLSX.utils.aoa_to_sheet(rows)
   ws['!cols'] = [{ wch: 12 }, ...productOrder.map(() => ({ wch: 18 })), { wch: 12 }]
