@@ -83,7 +83,7 @@ export function exportAdminReport(logs: TimeLog[], workers: Worker[]) {
 }
 
 // ── Tipos para pedidos ──
-type OrderItemExport = { product: { name: string; price: number; supplier: string } | null; qty_delivered: number | null; price_override: number | null }
+type OrderItemExport = { product_id?: string; product: { name: string; price: number; supplier: string } | null; qty_requested?: number | null; qty_delivered: number | null; price_override: number | null }
 type OrderExport = { id: string; delivery_date: string; status: string; worker: { full_name: string } | null; items: OrderItemExport[] }
 
 function orderTotalExport(items: OrderItemExport[]) {
@@ -92,6 +92,86 @@ function orderTotalExport(items: OrderItemExport[]) {
     const price = i.price_override ?? i.product?.price ?? 0
     return s + qty * price
   }, 0)
+}
+
+// Construye una hoja pivote: filas = productos, columnas = fechas, celda = "pedido / entregado"
+function buildProductsByDaySheet(orders: OrderExport[]) {
+  // Fechas únicas ordenadas
+  const dates = [...new Set(orders.map(o => o.delivery_date))].sort()
+
+  // Acumular cantidades por producto y fecha
+  type Cell = { req: number; del: number }
+  const productNames: Record<string, string> = {}
+  const productOrder: string[] = [] // mantiene primer orden de aparición
+  const data: Record<string, Record<string, Cell>> = {} // productKey -> date -> {req, del}
+
+  for (const o of orders) {
+    for (const item of (o.items || [])) {
+      if (!item.product) continue
+      const key = item.product_id || item.product.name
+      if (!productNames[key]) {
+        productNames[key] = item.product.name
+        productOrder.push(key)
+      }
+      if (!data[key]) data[key] = {}
+      if (!data[key][o.delivery_date]) data[key][o.delivery_date] = { req: 0, del: 0 }
+      data[key][o.delivery_date].req += item.qty_requested ?? 0
+      data[key][o.delivery_date].del += item.qty_delivered ?? 0
+    }
+  }
+
+  const fmtDate = (d: string) => {
+    try { return format(parseISOLocal(d), 'dd/MM') } catch { return d }
+  }
+
+  const header = ['Producto', ...dates.map(fmtDate), 'Total']
+  const rows: (string | number)[][] = [header]
+
+  for (const key of productOrder) {
+    const row: (string | number)[] = [productNames[key]]
+    let totalReq = 0
+    let totalDel = 0
+    for (const d of dates) {
+      const cell = data[key][d]
+      if (!cell || (cell.req === 0 && cell.del === 0)) {
+        row.push('—')
+      } else {
+        row.push(`${cell.req} / ${cell.del}`)
+        totalReq += cell.req
+        totalDel += cell.del
+      }
+    }
+    row.push(`${totalReq} / ${totalDel}`)
+    rows.push(row)
+  }
+
+  // Fila de totales por día al final
+  const totalsRow: (string | number)[] = ['Total día']
+  let grandReq = 0
+  let grandDel = 0
+  for (const d of dates) {
+    let dReq = 0
+    let dDel = 0
+    for (const key of productOrder) {
+      const cell = data[key][d]
+      if (cell) { dReq += cell.req; dDel += cell.del }
+    }
+    totalsRow.push(dReq === 0 && dDel === 0 ? '—' : `${dReq} / ${dDel}`)
+    grandReq += dReq
+    grandDel += dDel
+  }
+  totalsRow.push(`${grandReq} / ${grandDel}`)
+  rows.push(totalsRow)
+
+  const ws = XLSX.utils.aoa_to_sheet(rows)
+  ws['!cols'] = [{ wch: 26 }, ...dates.map(() => ({ wch: 10 })), { wch: 12 }]
+  return ws
+}
+
+// Parser de fecha "YYYY-MM-DD" sin desfase de zona horaria
+function parseISOLocal(dateStr: string) {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(y, (m || 1) - 1, d || 1)
 }
 
 export function exportPedidosReport(
@@ -129,6 +209,10 @@ export function exportPedidosReport(
   const { ws: wsCaja,   subtotal: totCaja   } = buildSheet(caja)
   const { ws: wsFood,   subtotal: totFood   } = buildSheet(food)
 
+  // Hojas pivote: productos por día (cantidad pedida / entregada)
+  const wsCocinaProductos = buildProductsByDaySheet(cocina)
+  const wsCajaProductos   = buildProductsByDaySheet(caja)
+
   // Hoja Resumen
   const resumen: (string | number)[][] = [
     ['Módulo', 'Pedidos entregados', 'Total'],
@@ -143,7 +227,9 @@ export function exportPedidosReport(
 
   XLSX.utils.book_append_sheet(wb, wsResumen, '📊 Resumen')
   XLSX.utils.book_append_sheet(wb, wsCocina,  '🍳 Cocina')
+  XLSX.utils.book_append_sheet(wb, wsCocinaProductos, '🍳 Cocina x Producto')
   XLSX.utils.book_append_sheet(wb, wsCaja,    '🗂 Caja')
+  XLSX.utils.book_append_sheet(wb, wsCajaProductos,   '🗂 Caja x Producto')
   XLSX.utils.book_append_sheet(wb, wsFood,    '🍔 Food')
 
   const filename = `Informe_Pedidos_${dateFrom}_${dateTo}.xlsx`
