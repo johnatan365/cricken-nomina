@@ -94,16 +94,15 @@ function orderTotalExport(items: OrderItemExport[]) {
   }, 0)
 }
 
-// Construye una hoja pivote: filas = fechas, columnas = productos, celda = "pedido / entregado"
+// Construye una hoja pivote: filas = fechas, columnas = productos, celda = cantidad entregada
 function buildProductsByDaySheet(orders: OrderExport[]) {
   // Fechas únicas ordenadas
   const dates = [...new Set(orders.map(o => o.delivery_date))].sort()
 
-  // Acumular cantidades por producto y fecha
-  type Cell = { req: number; del: number }
+  // Acumular cantidades entregadas por producto y fecha
   const productNames: Record<string, string> = {}
   const productOrder: string[] = [] // mantiene primer orden de aparición
-  const data: Record<string, Record<string, Cell>> = {} // productKey -> date -> {req, del}
+  const data: Record<string, Record<string, number>> = {} // productKey -> date -> qty_delivered
 
   for (const o of orders) {
     for (const item of (o.items || [])) {
@@ -114,9 +113,8 @@ function buildProductsByDaySheet(orders: OrderExport[]) {
         productOrder.push(key)
       }
       if (!data[key]) data[key] = {}
-      if (!data[key][o.delivery_date]) data[key][o.delivery_date] = { req: 0, del: 0 }
-      data[key][o.delivery_date].req += item.qty_requested ?? 0
-      data[key][o.delivery_date].del += item.qty_delivered ?? 0
+      if (!data[key][o.delivery_date]) data[key][o.delivery_date] = 0
+      data[key][o.delivery_date] += item.qty_delivered ?? 0
     }
   }
 
@@ -129,38 +127,26 @@ function buildProductsByDaySheet(orders: OrderExport[]) {
 
   for (const d of dates) {
     const row: (string | number)[] = [fmtDate(d)]
-    let totalReq = 0
-    let totalDel = 0
+    let totalDay = 0
     for (const key of productOrder) {
-      const cell = data[key][d]
-      if (!cell || (cell.req === 0 && cell.del === 0)) {
-        row.push('—')
-      } else {
-        row.push(`${cell.req} / ${cell.del}`)
-        totalReq += cell.req
-        totalDel += cell.del
-      }
+      const qty = data[key][d] ?? 0
+      row.push(qty)
+      totalDay += qty
     }
-    row.push(totalReq === 0 && totalDel === 0 ? '—' : `${totalReq} / ${totalDel}`)
+    row.push(totalDay)
     rows.push(row)
   }
 
   // Fila de totales por producto al final
   const totalsRow: (string | number)[] = ['Total producto']
-  let grandReq = 0
-  let grandDel = 0
+  let grandTotal = 0
   for (const key of productOrder) {
-    let pReq = 0
-    let pDel = 0
-    for (const d of dates) {
-      const cell = data[key][d]
-      if (cell) { pReq += cell.req; pDel += cell.del }
-    }
-    totalsRow.push(pReq === 0 && pDel === 0 ? '—' : `${pReq} / ${pDel}`)
-    grandReq += pReq
-    grandDel += pDel
+    let pTotal = 0
+    for (const d of dates) pTotal += data[key][d] ?? 0
+    totalsRow.push(pTotal)
+    grandTotal += pTotal
   }
-  totalsRow.push(`${grandReq} / ${grandDel}`)
+  totalsRow.push(grandTotal)
   rows.push(totalsRow)
 
   const ws = XLSX.utils.aoa_to_sheet(rows)
