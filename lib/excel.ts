@@ -95,6 +95,7 @@ function orderTotalExport(items: OrderItemExport[]) {
 }
 
 // Construye una hoja pivote: filas = fechas, columnas = productos, celda = cantidad entregada
+// Además retorna el detalle de gasto por producto para poder construir el balance combinado
 function buildProductsByDaySheet(orders: OrderExport[]) {
   // Fechas únicas ordenadas
   const dates = [...new Set(orders.map(o => o.delivery_date))].sort()
@@ -104,6 +105,7 @@ function buildProductsByDaySheet(orders: OrderExport[]) {
   const productOrder: string[] = [] // mantiene primer orden de aparición
   const data: Record<string, Record<string, number>> = {}  // productKey -> date -> qty_delivered
   const spent: Record<string, number> = {} // productKey -> total $ gastado en el periodo
+  const qtyTotal: Record<string, number> = {} // productKey -> total unidades entregadas en el periodo
 
   for (const o of orders) {
     for (const item of (o.items || [])) {
@@ -121,6 +123,7 @@ function buildProductsByDaySheet(orders: OrderExport[]) {
       data[key][o.delivery_date] += qty
 
       spent[key] = (spent[key] ?? 0) + qty * price
+      qtyTotal[key] = (qtyTotal[key] ?? 0) + qty
     }
   }
 
@@ -168,6 +171,48 @@ function buildProductsByDaySheet(orders: OrderExport[]) {
 
   const ws = XLSX.utils.aoa_to_sheet(rows)
   ws['!cols'] = [{ wch: 12 }, ...productOrder.map(() => ({ wch: 18 })), { wch: 12 }]
+
+  // Detalle de gasto por producto, para el balance combinado entre módulos
+  const productSpend = productOrder.map(key => ({
+    name: productNames[key],
+    qty: qtyTotal[key] ?? 0,
+    spent: spent[key] ?? 0,
+  }))
+
+  return { ws, productSpend }
+}
+
+// Construye la hoja de balance: todos los productos (de varios módulos) ordenados de mayor a menor gasto
+function buildBalanceSheet(modules: { label: string; productSpend: { name: string; qty: number; spent: number }[] }[]) {
+  type Row = { name: string; qty: number; spent: number; module: string }
+  const all: Row[] = []
+  for (const m of modules) {
+    for (const p of m.productSpend) {
+      if (p.spent <= 0) continue
+      all.push({ name: p.name, qty: p.qty, spent: p.spent, module: m.label })
+    }
+  }
+  all.sort((a, b) => b.spent - a.spent)
+
+  const grandTotal = all.reduce((s, r) => s + r.spent, 0)
+
+  const rows: (string | number)[][] = [
+    ['Puesto', 'Producto', 'Módulo', 'Cantidad entregada', 'Total gastado ($)', '% del total'],
+  ]
+  all.forEach((r, i) => {
+    rows.push([
+      i + 1,
+      r.name,
+      r.module,
+      r.qty,
+      r.spent,
+      grandTotal > 0 ? Math.round((r.spent / grandTotal) * 1000) / 10 : 0,
+    ])
+  })
+  rows.push(['', 'TOTAL', '', '', grandTotal, 100])
+
+  const ws = XLSX.utils.aoa_to_sheet(rows)
+  ws['!cols'] = [{ wch: 8 }, { wch: 34 }, { wch: 10 }, { wch: 18 }, { wch: 18 }, { wch: 12 }]
   return ws
 }
 
@@ -212,9 +257,15 @@ export function exportPedidosReport(
   const { ws: wsCaja,   subtotal: totCaja   } = buildSheet(caja)
   const { ws: wsFood,   subtotal: totFood   } = buildSheet(food)
 
-  // Hojas pivote: productos por día (cantidad pedida / entregada)
-  const wsCocinaProductos = buildProductsByDaySheet(cocina)
-  const wsCajaProductos   = buildProductsByDaySheet(caja)
+  // Hojas pivote: productos por día (cantidad entregada)
+  const { ws: wsCocinaProductos, productSpend: spendCocina } = buildProductsByDaySheet(cocina)
+  const { ws: wsCajaProductos,   productSpend: spendCaja   } = buildProductsByDaySheet(caja)
+
+  // Hoja de balance: todos los productos de Cocina + Caja, ordenados de mayor a menor gasto
+  const wsBalance = buildBalanceSheet([
+    { label: 'Cocina', productSpend: spendCocina },
+    { label: 'Caja',   productSpend: spendCaja   },
+  ])
 
   // Hoja Resumen
   const resumen: (string | number)[][] = [
@@ -229,6 +280,7 @@ export function exportPedidosReport(
   wsResumen['!cols'] = [{ wch: 18 }, { wch: 22 }, { wch: 18 }]
 
   XLSX.utils.book_append_sheet(wb, wsResumen, '📊 Resumen')
+  XLSX.utils.book_append_sheet(wb, wsBalance, '📈 Balance Productos')
   XLSX.utils.book_append_sheet(wb, wsCocina,  '🍳 Cocina')
   XLSX.utils.book_append_sheet(wb, wsCocinaProductos, '🍳 Cocina x Producto')
   XLSX.utils.book_append_sheet(wb, wsCaja,    '🗂 Caja')
