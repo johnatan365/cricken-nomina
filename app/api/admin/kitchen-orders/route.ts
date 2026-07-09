@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   // Query sin join a workers para evitar ambigüedad de FK
   let q = supabase
     .from('kitchen_orders')
-    .select('id, delivery_date, status, whatsapp_sent, worker_id, delivered_by, order_type, items:kitchen_order_items(id, product_id, qty_requested, qty_delivered, observation, price_override, product:kitchen_products(id, name, price, supplier))')
+    .select('id, delivery_date, status, whatsapp_sent, worker_id, delivered_by, order_type, items:kitchen_order_items(id, product_id, qty_requested, qty_delivered, observation, price_override, product:kitchen_products(id, name, price, supplier, sort_order))')
     .eq('order_type', order_type)
     .order('delivery_date', { ascending: false })
 
