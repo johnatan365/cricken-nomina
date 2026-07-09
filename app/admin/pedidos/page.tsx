@@ -79,9 +79,13 @@ export default function AdminPedidosPage() {
 
   const suppliers = [...new Set(products.map(p => p.supplier))].sort()
 
+  function sortItems(items: OrderItem[]) {
+    return [...items].sort((a, b) => (a.product?.sort_order ?? 999) - (b.product?.sort_order ?? 999))
+  }
+
   function getWhatsAppLink(order: Order) {
     const label = mainTab === 'cash' ? 'Pedido Caja Cricken' : 'Pedido Cocina Cricken'
-    const lines = (order.items || [])
+    const lines = sortItems(order.items || [])
       .filter(i => i.qty_requested > 0)
       .map(i => `${i.qty_requested} - ${i.product?.name}`)
       .join('\n')
@@ -300,7 +304,7 @@ export default function AdminPedidosPage() {
           {loading ? <div className="card text-center py-10"><p className="text-white/40">Cargando...</p></div>
           : orders.length === 0 ? <div className="card text-center py-10"><p className="text-3xl mb-2">📋</p><p className="text-white/50">No hay pedidos</p></div>
           : orders.map(order => {
-            const groups = groupBySupplier(order.items || [])
+            const groups = groupBySupplier(sortItems(order.items || []))
             const total  = orderTotal(order.items || [], order.status)
             return (
               <div key={order.id} className="card">
