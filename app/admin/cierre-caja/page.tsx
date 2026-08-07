@@ -44,6 +44,8 @@ type DifferenceRequest = {
   cash_counted: number
   status: string
   created_at: string
+  admin_note?: string | null
+  resolved_at?: string | null
 }
 
 type BaseChangeRequest = {
@@ -82,6 +84,9 @@ export default function AdminCierreCajaPage() {
   const [diffRequests, setDiffRequests] = useState<DifferenceRequest[]>([])
   const [diffNotes, setDiffNotes]     = useState<Record<string, string>>({})
   const [processingDiffId, setProcessingDiffId] = useState<string | null>(null)
+  const [rejectedDrafts, setRejectedDrafts] = useState<DifferenceRequest[]>([])
+  const [showRejected, setShowRejected] = useState(false)
+  const [restoringId, setRestoringId] = useState<string | null>(null)
   const editingBaseRef                = useRef<Record<string, string>>({})
   const [editingBaseVersion, setEditingBaseVersion] = useState(0)
   const [savingBase, setSavingBase]   = useState<string | null>(null)
@@ -118,6 +123,12 @@ export default function AdminCierreCajaPage() {
     setDiffRequests(json.drafts || [])
   }, [])
 
+  const loadRejectedDrafts = useCallback(async () => {
+    const res  = await fetch('/api/admin/cash-register-drafts?status=rejected')
+    const json = await res.json()
+    setRejectedDrafts(json.drafts || [])
+  }, [])
+
   const loadBaseRequests = useCallback(async () => {
     const res  = await fetch('/api/admin/base-change-requests?status=pending')
     const json = await res.json()
@@ -127,8 +138,14 @@ export default function AdminCierreCajaPage() {
   useEffect(() => { loadData() }, [loadData])
   useEffect(() => { loadDiffRequests() }, [loadDiffRequests])
   useEffect(() => { loadBaseRequests() }, [loadBaseRequests])
+  useEffect(() => { loadRejectedDrafts() }, [loadRejectedDrafts])
 
   async function resolveDiff(id: string, action: 'approved' | 'rejected') {
+    if (action === 'rejected') {
+      const req = diffRequests.find(d => d.id === id)
+      const who = req ? `${req.worker_name} · ${format(parseISO(req.register_date), "d MMM yyyy", { locale: es })}` : 'este cierre'
+      if (!confirm(`¿Seguro que quieres RECHAZAR el cierre de ${who}?\n\nEl cierre NO se registrará. Podrás recuperarlo después desde la sección "Cierres rechazados".`)) return
+    }
     setProcessingDiffId(id)
     await fetch('/api/admin/cash-register-drafts', {
       method: 'PATCH',
@@ -136,6 +153,23 @@ export default function AdminCierreCajaPage() {
       body: JSON.stringify({ id, action, admin_note: diffNotes[id] || null }),
     })
     setProcessingDiffId(null)
+    loadDiffRequests()
+    loadRejectedDrafts()
+    loadData()
+  }
+
+  async function restoreDraft(id: string) {
+    const req = rejectedDrafts.find(d => d.id === id)
+    const who = req ? `${req.worker_name} · ${format(parseISO(req.register_date), "d MMM yyyy", { locale: es })}` : 'este cierre'
+    if (!confirm(`¿Restaurar el cierre de ${who}?\n\nVolverá a la lista de pendientes para que lo apruebes o rechaces.`)) return
+    setRestoringId(id)
+    await fetch('/api/admin/cash-register-drafts', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, action: 'restore' }),
+    })
+    setRestoringId(null)
+    loadRejectedDrafts()
     loadDiffRequests()
     loadData()
   }
@@ -282,6 +316,68 @@ export default function AdminCierreCajaPage() {
                   ✕ Rechazar
                 </button>
               </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Panel cierres rechazados (recuperables) */}
+      {rejectedDrafts.length > 0 && (
+        <div className="space-y-2">
+          <button
+            onClick={() => setShowRejected(s => !s)}
+            className="w-full flex items-center justify-between rounded-2xl px-4 py-3 border border-white/10 bg-white/5 hover:bg-white/10 transition-all">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">🗑️</span>
+              <p className="text-white/70 font-bold text-sm">
+                {rejectedDrafts.length} cierre{rejectedDrafts.length > 1 ? 's' : ''} rechazado{rejectedDrafts.length > 1 ? 's' : ''} (se pueden recuperar)
+              </p>
+            </div>
+            <span className="text-white/40 text-xs">{showRejected ? '▲ Ocultar' : '▼ Ver'}</span>
+          </button>
+
+          {showRejected && rejectedDrafts.map((req: DifferenceRequest) => (
+            <div key={req.id} className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3 opacity-90">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-white font-bold text-sm">{req.worker_name}</p>
+                  <p className="text-white/50 text-xs mt-0.5">
+                    {SHIFT_LABELS[req.shift]} · {format(parseISO(req.register_date), "d MMM yyyy", { locale: es })}
+                  </p>
+                  {req.resolved_at && (
+                    <p className="text-white/30 text-xs mt-0.5">
+                      Rechazado {format(parseISO(req.resolved_at), "d MMM, HH:mm", { locale: es })}
+                    </p>
+                  )}
+                </div>
+                <span className={`text-xs px-2 py-1 rounded-full font-bold border ${req.difference > 0 ? 'bg-yellow-400/20 text-yellow-300 border-yellow-400/30' : 'bg-red-500/20 text-red-300 border-red-400/30'}`}>
+                  {req.difference > 0 ? '+' : ''}{cop(req.difference)}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                {[['Total ventas', req.total_real_sales], ['Efectivo esperado', req.expected_cash], ['Efectivo contado', req.cash_counted]].map(([label, value]) => (
+                  <div key={String(label)} className="bg-white/5 rounded-xl px-3 py-2">
+                    <p className="text-white/40">{label}</p>
+                    <p className="text-white font-bold">{cop(Number(value))}</p>
+                  </div>
+                ))}
+              </div>
+              {req.difference_note && (
+                <div className="bg-white/5 rounded-xl px-3 py-2">
+                  <p className="text-white/40 text-xs mb-1">Nota del trabajador</p>
+                  <p className="text-white text-sm">{req.difference_note}</p>
+                </div>
+              )}
+              {req.admin_note && (
+                <div className="bg-white/5 rounded-xl px-3 py-2">
+                  <p className="text-white/40 text-xs mb-1">Nota del rechazo</p>
+                  <p className="text-white text-sm">{req.admin_note}</p>
+                </div>
+              )}
+              <button onClick={() => restoreDraft(req.id)} disabled={restoringId === req.id}
+                className="w-full py-2.5 rounded-xl text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 hover:bg-emerald-500/30 transition-all disabled:opacity-50">
+                {restoringId === req.id ? 'Restaurando...' : '↩ Restaurar (volver a pendientes)'}
+              </button>
             </div>
           ))}
         </div>

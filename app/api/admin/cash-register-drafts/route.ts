@@ -4,14 +4,16 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
-// GET — listar borradores pendientes
-export async function GET(_req: NextRequest) {
+// GET — listar borradores por estado
+//   ?status=pending_approval (default) | rejected | approved
+export async function GET(req: NextRequest) {
   try {
+    const status = req.nextUrl.searchParams.get('status') || 'pending_approval'
     const supabase = createAdminClient()
     const { data, error } = await supabase
       .from('cash_register_drafts_admin')
       .select('*')
-      .eq('status', 'pending_approval')
+      .eq('status', status)
       .order('created_at', { ascending: false })
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
@@ -21,11 +23,13 @@ export async function GET(_req: NextRequest) {
   }
 }
 
-// PATCH — aprobar o rechazar borrador
+// PATCH — aprobar, rechazar o restaurar un borrador
+//   action: 'approved' | 'rejected' | 'restore'
+//   'restore' devuelve un borrador rechazado a pendiente (para deshacer un rechazo por error)
 export async function PATCH(req: NextRequest) {
   try {
     const { id, action, admin_note } = await req.json()
-    if (!id || !['approved', 'rejected'].includes(action))
+    if (!id || !['approved', 'rejected', 'restore'].includes(action))
       return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 })
 
     const supabase = createAdminClient()
@@ -40,7 +44,18 @@ export async function PATCH(req: NextRequest) {
     if (draftErr || !draft)
       return NextResponse.json({ error: 'Borrador no encontrado' }, { status: 404 })
 
-    // Marcar como resuelto
+    // 'restore' → vuelve a pendiente y limpia la resolución previa
+    if (action === 'restore') {
+      const { error: restoreErr } = await supabase
+        .from('cash_register_drafts')
+        .update({ status: 'pending_approval', admin_note: null, resolved_at: null })
+        .eq('id', id)
+      if (restoreErr)
+        return NextResponse.json({ error: restoreErr.message }, { status: 400 })
+      return NextResponse.json({ ok: true })
+    }
+
+    // Marcar como resuelto (approved / rejected)
     await supabase
       .from('cash_register_drafts')
       .update({ status: action, admin_note: admin_note || null, resolved_at: new Date().toISOString() })
