@@ -94,12 +94,13 @@ export async function DELETE(req: NextRequest) {
     if (!worker_id) return NextResponse.json({ error: 'worker_id requerido' }, { status: 400 })
 
     const supabase = createAdminClient()
-    // Solo eliminar borradores ya resueltos (approved o rejected)
+    // Solo eliminar borradores APROBADOS (ya copiados a cash_registers, no se pierde nada).
+    // Los 'rejected' NUNCA se borran: deben poder restaurarse desde el panel de admin.
     await supabase
       .from('cash_register_drafts')
       .delete()
       .eq('worker_id', worker_id)
-      .in('status', ['approved', 'rejected'])
+      .eq('status', 'approved')
 
     return NextResponse.json({ ok: true })
   } catch {
