@@ -24,6 +24,7 @@ export default function AdminPedidosPage() {
   const [editingItem, setEditingItem] = useState<Record<string, {qty_requested?: string; qty_delivered?: string; price?: string}>>({})
   const [editingDate, setEditingDate] = useState<Record<string, string>>({})
   const [addingProduct, setAddingProduct] = useState<{orderId: string; productId: string; qty: string} | null>(null)
+  const [productSearch, setProductSearch] = useState('')
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [newProduct, setNewProduct] = useState({ name: '', price: '', supplier: 'Brisas' })
   const [savingProduct, setSavingProduct] = useState(false)
@@ -238,12 +239,25 @@ export default function AdminPedidosPage() {
             <p className="text-white font-bold text-sm">Agregar producto al pedido</p>
             <div>
               <label className="label">Producto</label>
-              <select value={addingProduct.productId}
-                onChange={e => setAddingProduct(prev => prev ? { ...prev, productId: e.target.value } : prev)}
-                className="input-field">
-                <option value="">Seleccionar...</option>
-                {products.map(p => <option key={p.id} value={p.id}>{p.name} — {p.supplier}</option>)}
-              </select>
+              <input type="text" value={productSearch}
+                onChange={e => setProductSearch(e.target.value)}
+                placeholder="🔍 Buscar producto..."
+                autoFocus
+                className="input-field mb-2" />
+              <div className="max-h-52 overflow-y-auto space-y-1">
+                {products
+                  .filter(p => p.name.toLowerCase().includes(productSearch.toLowerCase().trim()))
+                  .map(p => (
+                    <button key={p.id} type="button"
+                      onClick={() => setAddingProduct(prev => prev ? { ...prev, productId: p.id } : prev)}
+                      className={`w-full text-left px-3 py-2 rounded-xl text-xs transition-all border ${addingProduct.productId === p.id ? 'bg-yellow-400/20 border-yellow-400/40 text-white' : 'bg-white/5 border-transparent text-white/70 hover:bg-white/10'}`}>
+                      {p.name} <span className="text-white/40">— {p.supplier}</span>
+                    </button>
+                  ))}
+                {products.filter(p => p.name.toLowerCase().includes(productSearch.toLowerCase().trim())).length === 0 && (
+                  <p className="text-white/40 text-xs text-center py-3">Sin resultados</p>
+                )}
+              </div>
             </div>
             <div>
               <label className="label">Cantidad</label>
@@ -337,7 +351,7 @@ export default function AdminPedidosPage() {
                       <p className="text-white/40 text-xs">Total</p>
                       <p className="text-yellow-400 font-bold">{total !== null ? cop(total) : '—'}</p>
                     </div>
-                    <button onClick={e => { e.stopPropagation(); setAddingProduct({ orderId: order.id, productId: '', qty: '1' }) }}
+                    <button onClick={e => { e.stopPropagation(); setProductSearch(''); setAddingProduct({ orderId: order.id, productId: '', qty: '1' }) }}
                       className="text-emerald-400/60 hover:text-emerald-400 text-sm px-1 transition-all" title="Agregar producto">➕</button>
                     <button onClick={e => { e.stopPropagation(); deleteOrder(order.id) }}
                       className="text-red-400/40 hover:text-red-400 text-xs px-1 transition-all">🗑</button>
@@ -347,6 +361,12 @@ export default function AdminPedidosPage() {
 
                 {expanded === order.id && (
                   <div className="mt-4 pt-4 border-t border-white/10 space-y-4">
+                    <div className="flex items-center">
+                      <a href={getWhatsAppLink(order)} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-2 bg-green-500/20 border border-green-500/30 text-green-300 text-xs font-bold px-3 py-2 rounded-xl hover:bg-green-500/30 transition-all">
+                        📱 Enviar por WhatsApp
+                      </a>
+                    </div>
                     {Object.entries(groups).map(([supplier, items]) => {
                       const supplierTotal = order.status !== 'delivered' ? null : items.reduce((s, i) => {
                         const qty   = i.qty_delivered ?? 0
@@ -415,14 +435,7 @@ export default function AdminPedidosPage() {
                       )
                     })}
 
-                    <div className="flex items-center justify-between border-t border-white/15 pt-3">
-                      <a href={getWhatsAppLink(order)} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-2 bg-green-500/20 border border-green-500/30 text-green-300 text-xs font-bold px-3 py-2 rounded-xl hover:bg-green-500/30 transition-all">
-                        📱 Enviar por WhatsApp
-                      </a>
-                    </div>
-
-                    <div className="flex justify-between font-bold pt-1">
+                    <div className="flex justify-between font-bold pt-1 border-t border-white/15 mt-1">
                       <span className="text-white">Total pedido</span>
                       <span className={`text-lg ${total !== null ? 'text-yellow-400' : 'text-white/30'}`}>
                         {total !== null ? cop(total) : 'Pendiente de entrega'}

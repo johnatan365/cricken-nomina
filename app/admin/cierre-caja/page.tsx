@@ -75,6 +75,7 @@ export default function AdminCierreCajaPage() {
   const [dateTo, setDateTo]           = useState(format(endOfMonth(new Date()), 'yyyy-MM-dd'))
   const [shiftFilter, setShiftFilter] = useState('')
   const [workerFilter, setWorkerFilter] = useState('')
+  const [workers, setWorkers]         = useState<{ id: string; full_name: string }[]>([])
   const [expanded, setExpanded]       = useState<string | null>(null)
   const expandedRef                   = useRef<string | null>(null)
   const [onlyIssues, setOnlyIssues]   = useState(false)
@@ -135,10 +136,17 @@ export default function AdminCierreCajaPage() {
     setBaseRequests(json.requests || [])
   }, [])
 
+  const loadWorkers = useCallback(async () => {
+    const res  = await fetch('/api/admin/workers')
+    const json = await res.json()
+    setWorkers(json.workers || [])
+  }, [])
+
   useEffect(() => { loadData() }, [loadData])
   useEffect(() => { loadDiffRequests() }, [loadDiffRequests])
   useEffect(() => { loadBaseRequests() }, [loadBaseRequests])
   useEffect(() => { loadRejectedDrafts() }, [loadRejectedDrafts])
+  useEffect(() => { loadWorkers() }, [loadWorkers])
 
   async function resolveDiff(id: string, action: 'approved' | 'rejected') {
     if (action === 'rejected') {
@@ -429,7 +437,7 @@ export default function AdminCierreCajaPage() {
       )}
 
       {/* Filtros */}
-      <div className="card grid grid-cols-3 gap-3">
+      <div className="card grid grid-cols-2 md:grid-cols-4 gap-3">
         <div><label className="label">Desde</label><input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="input-field" /></div>
         <div><label className="label">Hasta</label><input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="input-field" /></div>
         <div><label className="label">Turno</label>
@@ -437,6 +445,12 @@ export default function AdminCierreCajaPage() {
             <option value="">Todos los turnos</option>
             <option value="morning">☀️ Mañana</option>
             <option value="afternoon">🌙 Tarde</option>
+          </select>
+        </div>
+        <div><label className="label">Trabajador</label>
+          <select value={workerFilter} onChange={e => setWorkerFilter(e.target.value)} className="input-field">
+            <option value="">Todos</option>
+            {workers.map(w => <option key={w.id} value={w.id}>{w.full_name}</option>)}
           </select>
         </div>
       </div>
