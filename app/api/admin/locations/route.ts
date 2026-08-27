@@ -1,12 +1,14 @@
 import { createAdminClient } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAdmin, requireUser } from '@/lib/auth'
 
 const DEFAULT_LOCATIONS = [
   { id: 'local', name: 'Local Cricken', lat: 6.2466729, lng: -75.5620269, radius_meters: 100, is_active: true },
   { id: 'casa', name: 'Casa (Pruebas)', lat: 6.2388160, lng: -75.5632259, radius_meters: 150, is_active: true },
 ]
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const denied = await requireUser(req); if (denied) return denied
   try {
     const supabase = createAdminClient()
     const { data, error } = await supabase.from('locations').select('*').order('id')
@@ -22,6 +24,7 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
+  const denied = await requireAdmin(req); if (denied) return denied
   try {
     const { id, is_active } = await req.json()
     const supabase = createAdminClient()

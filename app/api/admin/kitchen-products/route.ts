@@ -1,9 +1,11 @@
 import { createAdminClient } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAdmin } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
+  const denied = await requireAdmin(req); if (denied) return denied
   const { searchParams } = new URL(req.url)
   const order_type = searchParams.get('order_type') || 'kitchen'
   const supabase = createAdminClient()
@@ -13,6 +15,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const denied = await requireAdmin(req); if (denied) return denied
   const body = await req.json()
   const supabase = createAdminClient()
 
@@ -32,6 +35,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const denied = await requireAdmin(req); if (denied) return denied
   const body = await req.json()
   const supabase = createAdminClient()
   const { error } = await supabase.from('kitchen_products')
@@ -42,6 +46,7 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const denied = await requireAdmin(req); if (denied) return denied
   const { searchParams } = new URL(req.url)
   const supabase = createAdminClient()
   const { error } = await supabase.from('kitchen_products').update({ is_active: false }).eq('id', searchParams.get('id')!)

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { apiFetch } from '@/lib/supabase'
 import { formatCOP, Worker, HourlyRate } from '@/types'
 
 const DAY_NAMES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
@@ -39,8 +40,8 @@ export default function TrabajadoresPage() {
   const loadData = useCallback(async () => {
     setLoading(true)
     const [wRes, rRes] = await Promise.all([
-      fetch('/api/admin/workers'),
-      fetch('/api/admin/rates'),
+      apiFetch('/api/admin/workers'),
+      apiFetch('/api/admin/rates'),
     ])
     const wData = await wRes.json()
     const rData = await rRes.json()
@@ -71,7 +72,7 @@ export default function TrabajadoresPage() {
   async function selectWorker(w: WorkerWithRates) {
     setSelected(w)
     setActiveTab('tarifas')
-    const res = await fetch('/api/admin/worker-schedules?worker_id=' + w.id)
+    const res = await apiFetch('/api/admin/worker-schedules?worker_id=' + w.id)
     const { schedules: existing } = await res.json()
     const full: WorkerSchedule[] = Array.from({ length: 7 }, (_, i) => {
       const found = (existing || []).find((s: WorkerSchedule) => s.day_of_week === i)
@@ -83,7 +84,7 @@ export default function TrabajadoresPage() {
   async function saveSchedules() {
     if (!selected) return
     setSavingSchedule(true)
-    const res = await fetch('/api/admin/worker-schedules', {
+    const res = await apiFetch('/api/admin/worker-schedules', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ worker_id: selected.id, schedules }),
@@ -94,7 +95,7 @@ export default function TrabajadoresPage() {
   }
 
   async function toggleActive(worker: WorkerWithRates) {
-    await fetch('/api/admin/workers', {
+    await apiFetch('/api/admin/workers', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: worker.id, is_active: !worker.is_active }),
@@ -104,7 +105,7 @@ export default function TrabajadoresPage() {
 
   async function toggleKitchen(worker: WorkerWithRates) {
     const newVal = !worker.has_kitchen_access
-    await fetch('/api/admin/workers', {
+    await apiFetch('/api/admin/workers', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: worker.id, has_kitchen_access: newVal }),
@@ -116,7 +117,7 @@ export default function TrabajadoresPage() {
 
   async function toggleCash(worker: WorkerWithRates) {
     const newVal = !worker.has_cash_register
-    await fetch('/api/admin/workers', {
+    await apiFetch('/api/admin/workers', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: worker.id, has_cash_register: newVal }),
@@ -130,7 +131,7 @@ export default function TrabajadoresPage() {
 
   async function deleteWorker(worker: WorkerWithRates) {
     if (!confirm(`Eliminar a ${worker.full_name}? Se borraran todos sus registros y pagos.`)) return
-    const res = await fetch('/api/admin/workers?id=' + worker.id, { method: 'DELETE' })
+    const res = await apiFetch('/api/admin/workers?id=' + worker.id, { method: 'DELETE' })
     if (!res.ok) showStatus('error', 'Error al eliminar trabajador')
     else { showStatus('success', 'Trabajador eliminado'); setSelected(null); await loadData() }
   }
@@ -143,7 +144,7 @@ export default function TrabajadoresPage() {
   async function saveWorker() {
     if (!selected) return
     setSaving(true)
-    const res = await fetch('/api/admin/workers', {
+    const res = await apiFetch('/api/admin/workers', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: selected.id, ...editWorkerForm }),
@@ -164,8 +165,8 @@ export default function TrabajadoresPage() {
   async function saveRate() {
     if (!selected) return
     setSaving(true)
-    if (editingRate) await fetch('/api/admin/rates?id=' + editingRate.id, { method: 'DELETE' })
-    const res = await fetch('/api/admin/rates', {
+    if (editingRate) await apiFetch('/api/admin/rates?id=' + editingRate.id, { method: 'DELETE' })
+    const res = await apiFetch('/api/admin/rates', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ worker_id: selected.id, start_time: rateForm.start_time + ':00', end_time: rateForm.end_time + ':00', rate_per_hour: parseFloat(rateForm.rate_per_hour) }),
@@ -177,7 +178,7 @@ export default function TrabajadoresPage() {
   }
 
   async function deleteRate(rateId: string) {
-    await fetch('/api/admin/rates?id=' + rateId, { method: 'DELETE' })
+    await apiFetch('/api/admin/rates?id=' + rateId, { method: 'DELETE' })
     showStatus('success', 'Tarifa eliminada')
     await loadData()
   }
@@ -276,7 +277,7 @@ export default function TrabajadoresPage() {
                     onClick={async () => {
                       const input = document.getElementById(`sunday-rate-${selected.id}`) as HTMLInputElement
                       const val = parseFloat(input.value) || null
-                      const res = await fetch('/api/admin/workers', {
+                      const res = await apiFetch('/api/admin/workers', {
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ id: selected.id, sunday_rate: val }),
@@ -315,7 +316,7 @@ export default function TrabajadoresPage() {
                 </div>
                 <button onClick={async () => {
                   const newVal = !selected.has_cash_order_access
-                  await fetch('/api/admin/workers', {
+                  await apiFetch('/api/admin/workers', {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ id: selected.id, has_cash_order_access: newVal }),
@@ -339,7 +340,7 @@ export default function TrabajadoresPage() {
                 </div>
                 <button onClick={async () => {
                   const newVal = !selected.has_food_tracker_access
-                  await fetch('/api/admin/workers', {
+                  await apiFetch('/api/admin/workers', {
                     method: 'PATCH', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ id: selected.id, has_food_tracker_access: newVal }),
                   })

@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase, apiFetch } from '@/lib/supabase'
 import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns'
 import { es } from 'date-fns/locale'
 
@@ -30,7 +30,7 @@ export default function FoodReportPage() {
     if (!w) return
     setWorker(w)
 
-    const res  = await fetch(`/api/admin/food-order-payments?date_from=${dateFrom}&date_to=${dateTo}`)
+    const res  = await apiFetch(`/api/admin/food-order-payments?date_from=${dateFrom}&date_to=${dateTo}`)
     const json = await res.json()
     setOrders(json.orders || [])
     setPayments(json.payments || [])

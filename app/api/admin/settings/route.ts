@@ -1,10 +1,12 @@
 // app/api/admin/settings/route.ts
 import { createAdminClient } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAdmin } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const denied = await requireAdmin(req); if (denied) return denied
   try {
     const supabase = createAdminClient()
     const { data, error } = await supabase
@@ -21,6 +23,7 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
+  const denied = await requireAdmin(req); if (denied) return denied
   try {
     const body = await req.json()
     const supabase = createAdminClient()

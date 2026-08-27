@@ -1,9 +1,11 @@
 import { createAdminClient } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAdmin, requireUser } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
+  const denied = await requireUser(req); if (denied) return denied
   const { searchParams } = new URL(req.url)
   const date_from = searchParams.get('date_from')
   const date_to   = searchParams.get('date_to')
@@ -46,6 +48,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const denied = await requireAdmin(req); if (denied) return denied
   const { order_ids, notes } = await req.json()
   const supabase = createAdminClient()
 
@@ -68,6 +71,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const denied = await requireAdmin(req); if (denied) return denied
   const { searchParams } = new URL(req.url)
   const order_id = searchParams.get('order_id')
   const supabase = createAdminClient()

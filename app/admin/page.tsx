@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase, apiFetch } from '@/lib/supabase'
 import { format, parseISO, startOfMonth, endOfMonth, endOfDay } from 'date-fns'
 
 function getQuincenas() {
@@ -72,8 +72,8 @@ export default function AdminNominaPage() {
     const toISO = new Date(dateTo + 'T23:59:59-05:00').toISOString()
 
     const [wRes, lRes] = await Promise.all([
-      fetch('/api/admin/workers'),
-      fetch(`/api/admin/logs?from=${fromISO}&to=${toISO}`),
+      apiFetch('/api/admin/workers'),
+      apiFetch(`/api/admin/logs?from=${fromISO}&to=${toISO}`),
     ])
     const { workers: workersData } = await wRes.json()
     const { logs: logsData } = await lRes.json()
@@ -149,7 +149,7 @@ export default function AdminNominaPage() {
           rate_per_hour: r.rate_per_hour.toString(),
         }))
       } else {
-        const res = await fetch('/api/admin/rates?worker_id=' + log.worker_id)
+        const res = await apiFetch('/api/admin/rates?worker_id=' + log.worker_id)
         const { rates } = await res.json()
         ranges = (rates || []).map((r: HourlyRate) => ({
           start_time: r.start_time.slice(0, 5),
@@ -184,7 +184,7 @@ export default function AdminNominaPage() {
       })) : null,
     }
 
-    const res = await fetch('/api/admin/logs', {
+    const res = await apiFetch('/api/admin/logs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -202,7 +202,7 @@ export default function AdminNominaPage() {
 
   async function deleteLog(logId: string) {
     if (!confirm('Eliminar este registro? Esta accion no se puede deshacer.')) return
-    const res = await fetch('/api/admin/logs?id=' + logId, { method: 'DELETE' })
+    const res = await apiFetch('/api/admin/logs?id=' + logId, { method: 'DELETE' })
     if (!res.ok) {
       showStatus('error', 'Error al eliminar registro')
     } else {
@@ -403,7 +403,7 @@ export default function AdminNominaPage() {
                                 const dayOfWeek = clockInBogota.getUTCDay()
                                 let defaultTime = '22:00'
                                 try {
-                                  const schedRes = await fetch('/api/admin/worker-schedules?worker_id=' + log.worker_id)
+                                  const schedRes = await apiFetch('/api/admin/worker-schedules?worker_id=' + log.worker_id)
                                   const { schedules } = await schedRes.json()
                                   const daySched = (schedules || []).find((s: { day_of_week: number; is_active: boolean; end_time: string }) => s.day_of_week === dayOfWeek && s.is_active)
                                   if (daySched) defaultTime = daySched.end_time.slice(0, 5)

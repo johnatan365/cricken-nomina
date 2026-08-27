@@ -1,12 +1,14 @@
 import { createAdminClient } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAdmin } from '@/lib/auth'
 
 const DEFAULT_RATES = [
   { start_time: '08:00:00', end_time: '18:00:00', rate_per_hour: 8000 },
   { start_time: '18:00:00', end_time: '05:00:00', rate_per_hour: 9000 },
 ]
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const denied = await requireAdmin(req); if (denied) return denied
   try {
     const supabase = createAdminClient()
     const { data: workers, error } = await supabase
@@ -19,6 +21,7 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
+  const denied = await requireAdmin(req); if (denied) return denied
   try {
     const body = await req.json()
     const { id, ...updates } = body
@@ -33,6 +36,7 @@ export async function PATCH(req: NextRequest) {
 
 // Called after worker registers to assign default rates
 export async function POST(req: NextRequest) {
+  const denied = await requireAdmin(req); if (denied) return denied
   try {
     const { worker_id } = await req.json()
     const supabase = createAdminClient()
@@ -54,6 +58,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const denied = await requireAdmin(req); if (denied) return denied
   try {
     const id = req.nextUrl.searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 })

@@ -1,11 +1,13 @@
 // app/api/admin/base-change-requests/route.ts
 import { createAdminClient } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAdmin } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
 // GET — listar solicitudes pendientes (o todas)
 export async function GET(req: NextRequest) {
+  const denied = await requireAdmin(req); if (denied) return denied
   try {
     const { searchParams } = new URL(req.url)
     const status = searchParams.get('status') || 'pending'
@@ -29,6 +31,7 @@ export async function GET(req: NextRequest) {
 
 // PATCH — aprobar o rechazar
 export async function PATCH(req: NextRequest) {
+  const denied = await requireAdmin(req); if (denied) return denied
   try {
     const { id, status, admin_note } = await req.json()
     if (!id || !['approved', 'rejected'].includes(status)) {

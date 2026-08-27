@@ -1,10 +1,12 @@
 // app/api/admin/cash-registers/edit-base/route.ts
 import { createAdminClient } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAdmin } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
 export async function PATCH(req: NextRequest) {
+  const denied = await requireAdmin(req); if (denied) return denied
   try {
     const { id, next_base } = await req.json()
     if (!id || next_base === undefined)

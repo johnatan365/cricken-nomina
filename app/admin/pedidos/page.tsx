@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { apiFetch } from '@/lib/supabase'
 import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { exportPedidosReport } from '@/lib/excel'
@@ -41,9 +42,9 @@ export default function AdminPedidosPage() {
     try {
       const mkParams = (tab: string) => new URLSearchParams({ date_from: dateFrom, date_to: dateTo, order_type: tab }).toString()
       const [rCocina, rCaja, rFood] = await Promise.all([
-        fetch('/api/admin/kitchen-orders?' + mkParams('kitchen')).then(r => r.json()),
-        fetch('/api/admin/kitchen-orders?' + mkParams('cash')).then(r => r.json()),
-        fetch('/api/admin/kitchen-orders?' + mkParams('food')).then(r => r.json()),
+        apiFetch('/api/admin/kitchen-orders?' + mkParams('kitchen')).then(r => r.json()),
+        apiFetch('/api/admin/kitchen-orders?' + mkParams('cash')).then(r => r.json()),
+        apiFetch('/api/admin/kitchen-orders?' + mkParams('food')).then(r => r.json()),
       ])
       exportPedidosReport(
         rCocina.orders || [],
@@ -63,14 +64,14 @@ export default function AdminPedidosPage() {
     setLoading(true)
     const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo, order_type: mainTab })
     if (supplierFilter !== 'all') params.set('supplier', supplierFilter)
-    const res  = await fetch('/api/admin/kitchen-orders?' + params)
+    const res  = await apiFetch('/api/admin/kitchen-orders?' + params)
     const json = await res.json()
     setOrders(json.orders || [])
     setLoading(false)
   }, [dateFrom, dateTo, supplierFilter, mainTab])
 
   const loadProducts = useCallback(async () => {
-    const res  = await fetch('/api/admin/kitchen-products?order_type=' + mainTab)
+    const res  = await apiFetch('/api/admin/kitchen-products?order_type=' + mainTab)
     const json = await res.json()
     setProducts(json.products || [])
   }, [mainTab])
@@ -105,7 +106,7 @@ export default function AdminPedidosPage() {
     setProducts(updated)
     dragItem.current  = null
     dragOver.current  = null
-    await fetch('/api/admin/kitchen-products', {
+    await apiFetch('/api/admin/kitchen-products', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type: 'reorder', items: updated.map(p => ({ id: p.id, sort_order: p.sort_order })) }),
     })
@@ -118,10 +119,10 @@ export default function AdminPedidosPage() {
     const update: Record<string, unknown> = { type: 'item', item_id: itemId }
     if (edit.qty_requested !== undefined) update.qty_requested = parseInt(edit.qty_requested) || 0
     if (edit.qty_delivered !== undefined) update.qty_delivered = parseInt(edit.qty_delivered) || 0
-    await fetch('/api/admin/kitchen-orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(update) })
+    await apiFetch('/api/admin/kitchen-orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(update) })
     if (edit.price !== undefined) {
       const item = orders.flatMap(o => o.items).find(i => i.id === itemId)
-      if (item) await fetch('/api/admin/kitchen-orders', {
+      if (item) await apiFetch('/api/admin/kitchen-orders', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'price', product_id: item.product_id, new_price: parseFloat(edit.price) || 0, item_id: itemId, update_product: true, order_date: orderDeliveryDate }),
       })
@@ -135,7 +136,7 @@ export default function AdminPedidosPage() {
   async function saveDate(orderId: string) {
     const newDate = editingDate[orderId]
     if (!newDate) return
-    await fetch('/api/admin/kitchen-orders', {
+    await apiFetch('/api/admin/kitchen-orders', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type: 'date', order_id: orderId, delivery_date: newDate }),
     })
@@ -147,7 +148,7 @@ export default function AdminPedidosPage() {
 
   async function addProductToOrder() {
     if (!addingProduct || !addingProduct.productId || !addingProduct.qty) return
-    await fetch('/api/admin/kitchen-orders', {
+    await apiFetch('/api/admin/kitchen-orders', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ order_id: addingProduct.orderId, product_id: addingProduct.productId, qty_requested: parseInt(addingProduct.qty) || 1 }),
     })
@@ -158,14 +159,14 @@ export default function AdminPedidosPage() {
 
   async function deleteItem(itemId: string) {
     if (!confirm('¿Quitar este producto del pedido?')) return
-    await fetch('/api/admin/kitchen-orders?item_id=' + itemId, { method: 'DELETE' })
+    await apiFetch('/api/admin/kitchen-orders?item_id=' + itemId, { method: 'DELETE' })
     showMsg('success', 'Producto eliminado del pedido')
     loadOrders()
   }
 
   async function deleteOrder(id: string) {
     if (!confirm('¿Eliminar este pedido completo?')) return
-    await fetch('/api/admin/kitchen-orders?id=' + id, { method: 'DELETE' })
+    await apiFetch('/api/admin/kitchen-orders?id=' + id, { method: 'DELETE' })
     showMsg('success', 'Pedido eliminado')
     loadOrders()
   }
@@ -173,13 +174,13 @@ export default function AdminPedidosPage() {
   async function saveProduct() {
     setSavingProduct(true)
     if (editingProduct) {
-      await fetch('/api/admin/kitchen-products', {
+      await apiFetch('/api/admin/kitchen-products', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: editingProduct.id, name: editingProduct.name, price: editingProduct.price, supplier: editingProduct.supplier }),
       })
       showMsg('success', 'Producto actualizado'); setEditingProduct(null)
     } else {
-      const res = await fetch('/api/admin/kitchen-products', {
+      const res = await apiFetch('/api/admin/kitchen-products', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newProduct.name, price: parseFloat(newProduct.price) || 0, supplier: newProduct.supplier, order_type: mainTab }),
       })
@@ -191,7 +192,7 @@ export default function AdminPedidosPage() {
 
   async function deleteProduct(id: string) {
     if (!confirm('¿Eliminar este producto?')) return
-    await fetch('/api/admin/kitchen-products?id=' + id, { method: 'DELETE' })
+    await apiFetch('/api/admin/kitchen-products?id=' + id, { method: 'DELETE' })
     showMsg('success', 'Producto eliminado'); loadProducts()
   }
 

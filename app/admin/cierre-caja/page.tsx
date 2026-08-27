@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { apiFetch } from '@/lib/supabase'
 import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns'
 import { es } from 'date-fns/locale'
 
@@ -108,7 +109,7 @@ export default function AdminCierreCajaPage() {
     const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo })
     if (shiftFilter)  params.set('shift', shiftFilter)
     if (workerFilter) params.set('worker_id', workerFilter)
-    const res  = await fetch('/api/admin/cash-registers?' + params)
+    const res  = await apiFetch('/api/admin/cash-registers?' + params)
     const json = await res.json()
     setRegisters((json.registers || []).map((r: CashRegister) => ({
       ...r,
@@ -119,26 +120,26 @@ export default function AdminCierreCajaPage() {
   }, [dateFrom, dateTo, shiftFilter, workerFilter])
 
   const loadDiffRequests = useCallback(async () => {
-    const res  = await fetch('/api/admin/cash-register-drafts')
+    const res  = await apiFetch('/api/admin/cash-register-drafts')
     const json = await res.json()
     setDiffRequests(json.drafts || [])
   }, [])
 
   const loadRejectedDrafts = useCallback(async () => {
-    const res  = await fetch('/api/admin/cash-register-drafts?status=rejected')
+    const res  = await apiFetch('/api/admin/cash-register-drafts?status=rejected')
     const json = await res.json()
     setRejectedDrafts(json.drafts || [])
   }, [])
 
   const loadBaseRequests = useCallback(async () => {
-    const res  = await fetch('/api/admin/base-change-requests?status=pending')
+    const res  = await apiFetch('/api/admin/base-change-requests?status=pending')
     const json = await res.json()
     setBaseRequests(json.requests || [])
   }, [])
 
   const loadWorkers = useCallback(async () => {
     // Solo trabajadores que han hecho al menos un cierre
-    const res  = await fetch('/api/admin/cash-registers?workers_with_registers=1')
+    const res  = await apiFetch('/api/admin/cash-registers?workers_with_registers=1')
     const json = await res.json()
     setWorkers(json.workers || [])
   }, [])
@@ -156,7 +157,7 @@ export default function AdminCierreCajaPage() {
       if (!confirm(`¿Seguro que quieres RECHAZAR el cierre de ${who}?\n\nEl cierre NO se registrará. Podrás recuperarlo después desde la sección "Cierres rechazados".`)) return
     }
     setProcessingDiffId(id)
-    await fetch('/api/admin/cash-register-drafts', {
+    await apiFetch('/api/admin/cash-register-drafts', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, action, admin_note: diffNotes[id] || null }),
@@ -172,7 +173,7 @@ export default function AdminCierreCajaPage() {
     const who = req ? `${req.worker_name} · ${format(parseISO(req.register_date), "d MMM yyyy", { locale: es })}` : 'este cierre'
     if (!confirm(`¿Restaurar el cierre de ${who}?\n\nVolverá a la lista de pendientes para que lo apruebes o rechaces.`)) return
     setRestoringId(id)
-    await fetch('/api/admin/cash-register-drafts', {
+    await apiFetch('/api/admin/cash-register-drafts', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, action: 'restore' }),
@@ -185,7 +186,7 @@ export default function AdminCierreCajaPage() {
 
   async function resolveRequest(id: string, status: 'approved' | 'rejected') {
     setProcessingId(id)
-    await fetch('/api/admin/base-change-requests', {
+    await apiFetch('/api/admin/base-change-requests', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, status, admin_note: adminNotes[id] || null }),
@@ -198,7 +199,7 @@ export default function AdminCierreCajaPage() {
   async function deleteRegister(id: string) {
     if (!confirm('¿Eliminar este cierre? Esta acción no se puede deshacer.')) return
     setDeletingId(id)
-    await fetch('/api/admin/cash-registers?id=' + id, { method: 'DELETE' })
+    await apiFetch('/api/admin/cash-registers?id=' + id, { method: 'DELETE' })
     setDeletingId(null)
     setExpanded(null)
     expandedRef.current = null
@@ -210,7 +211,7 @@ export default function AdminCierreCajaPage() {
     if (!newBase) return
     const savedExpanded = expandedRef.current
     setSavingBase(registerId)
-    const res = await fetch('/api/admin/cash-registers/edit-base', {
+    const res = await apiFetch('/api/admin/cash-registers/edit-base', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: registerId, next_base: parseFloat(newBase) }),
@@ -507,7 +508,7 @@ export default function AdminCierreCajaPage() {
                             className="bg-white/10 border border-white/20 rounded px-1 py-0.5 text-white text-xs"
                             onBlur={async () => {
                               if (editingDate.date !== r.register_date) {
-                                await fetch('/api/admin/cash-registers', {
+                                await apiFetch('/api/admin/cash-registers', {
                                   method: 'PATCH',
                                   headers: { 'Content-Type': 'application/json' },
                                   body: JSON.stringify({ id: r.id, register_date: editingDate.date })

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { apiFetch } from '@/lib/supabase'
 import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { formatCOP, formatHours, Worker, TimeLog, Payment } from '@/types'
@@ -48,9 +49,9 @@ export default function PagosPage() {
     setSuppLoading(true)
     // Calcular deudas por proveedor desde kitchen_orders entregados
     const [kitchenRes, cashRes, foodRes] = await Promise.all([
-      fetch(`/api/admin/kitchen-orders?date_from=${suppDateFrom}&date_to=${suppDateTo}&order_type=kitchen`).then(r => r.json()),
-      fetch(`/api/admin/kitchen-orders?date_from=${suppDateFrom}&date_to=${suppDateTo}&order_type=cash`).then(r => r.json()),
-      fetch(`/api/admin/kitchen-orders?date_from=${suppDateFrom}&date_to=${suppDateTo}&order_type=food`).then(r => r.json()),
+      apiFetch(`/api/admin/kitchen-orders?date_from=${suppDateFrom}&date_to=${suppDateTo}&order_type=kitchen`).then(r => r.json()),
+      apiFetch(`/api/admin/kitchen-orders?date_from=${suppDateFrom}&date_to=${suppDateTo}&order_type=cash`).then(r => r.json()),
+      apiFetch(`/api/admin/kitchen-orders?date_from=${suppDateFrom}&date_to=${suppDateTo}&order_type=food`).then(r => r.json()),
     ])
 
     const debts: Record<string, {kitchen: number; cash: number; food: number}> = {}
@@ -71,7 +72,7 @@ export default function PagosPage() {
     calcTotal(cashRes.orders, 'cash')
     calcTotal(foodRes.orders, 'food')
     // Historial de pagos — filtrado por el mismo rango de fechas
-    const paymentsRes = await fetch(`/api/admin/supplier-payments?date_from=${suppDateFrom}&date_to=${suppDateTo}`)
+    const paymentsRes = await apiFetch(`/api/admin/supplier-payments?date_from=${suppDateFrom}&date_to=${suppDateTo}`)
       .then(r => r.json())
     const existingPayments: any[] = paymentsRes.payments || []
     setSuppPayments(existingPayments)
@@ -98,7 +99,7 @@ export default function PagosPage() {
     setSuppDebts(debts)
 
     // Pedidos food para selección individual
-    const foodOrdersRes = await fetch(`/api/admin/food-order-payments?date_from=${suppDateFrom}&date_to=${suppDateTo}`)
+    const foodOrdersRes = await apiFetch(`/api/admin/food-order-payments?date_from=${suppDateFrom}&date_to=${suppDateTo}`)
       .then(r => r.json())
     setFoodOrders(foodOrdersRes.orders || [])
     setSuppLoading(false)
@@ -112,8 +113,8 @@ export default function PagosPage() {
     setLoading(true)
 
     const [wRes, pRes] = await Promise.all([
-      fetch('/api/admin/workers'),
-      fetch('/api/admin/payments'),
+      apiFetch('/api/admin/workers'),
+      apiFetch('/api/admin/payments'),
     ])
 
     const { workers: workersData } = await wRes.json()
@@ -184,7 +185,7 @@ export default function PagosPage() {
     }
 
     for (const [worker_id, { logIds, amount }] of Object.entries(byWorker)) {
-      await fetch('/api/admin/payments', {
+      await apiFetch('/api/admin/payments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ worker_id, amount, notes: paymentNotes.trim() || null, logIds }),
@@ -445,7 +446,7 @@ export default function PagosPage() {
                                     <button onClick={async (e) => {
                                       e.stopPropagation()
                                       if (!confirm('Eliminar este pago? Los registros quedarán como pendientes.')) return
-                                      const res = await fetch('/api/admin/payments?id=' + p.id, { method: 'DELETE' })
+                                      const res = await apiFetch('/api/admin/payments?id=' + p.id, { method: 'DELETE' })
                                       if (res.ok) {
                                         setStatus({ type: 'success', msg: 'Pago eliminado' })
                                         await loadData()
@@ -493,7 +494,7 @@ export default function PagosPage() {
                   <button onClick={() => setSuppPayModal(null)} className="flex-1 py-2.5 rounded-2xl text-sm font-bold bg-white/10 text-white/60">Cancelar</button>
                   <button disabled={suppSaving} onClick={async () => {
                     setSuppSaving(true)
-                    await fetch('/api/admin/supplier-payments', {
+                    await apiFetch('/api/admin/supplier-payments', {
                       method: 'POST', headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
                         supplier: suppPayModal.supplier,
@@ -602,7 +603,7 @@ export default function PagosPage() {
                       </div>
                       <button disabled={foodSaving} onClick={async () => {
                         setFoodSaving(true)
-                        await fetch('/api/admin/food-order-payments', {
+                        await apiFetch('/api/admin/food-order-payments', {
                           method: 'POST', headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ order_ids: Array.from(selectedFood) })
                         })
@@ -621,7 +622,7 @@ export default function PagosPage() {
                         <p className="text-white/40 text-xs">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(o.total)}</p>
                       </div>
                       <button onClick={async () => {
-                        await fetch('/api/admin/food-order-payments?order_id=' + o.id, { method: 'DELETE' })
+                        await apiFetch('/api/admin/food-order-payments?order_id=' + o.id, { method: 'DELETE' })
                         loadSupplierData()
                       }} className="text-red-400/50 hover:text-red-400 text-xs">🗑</button>
                     </div>
@@ -682,7 +683,7 @@ export default function PagosPage() {
                     <p className="text-emerald-400 font-bold">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(o.total)}</p>
                     <button onClick={async () => {
                       if (!confirm('¿Desmarcar este pago?')) return
-                      await fetch('/api/admin/food-order-payments?order_id=' + o.id, { method: 'DELETE' })
+                      await apiFetch('/api/admin/food-order-payments?order_id=' + o.id, { method: 'DELETE' })
                       loadSupplierData()
                     }} className="text-red-400/50 hover:text-red-400 text-xs">🗑</button>
                   </div>
@@ -704,7 +705,7 @@ export default function PagosPage() {
                   <p className="text-emerald-400 font-bold">{new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(p.amount)}</p>
                   <button onClick={async () => {
                     if (!confirm('¿Eliminar este pago?')) return
-                    await fetch('/api/admin/supplier-payments?id=' + p.id, { method: 'DELETE' })
+                    await apiFetch('/api/admin/supplier-payments?id=' + p.id, { method: 'DELETE' })
                     loadSupplierData()
                   }} className="text-red-400/50 hover:text-red-400 text-xs">🗑</button>
                 </div>

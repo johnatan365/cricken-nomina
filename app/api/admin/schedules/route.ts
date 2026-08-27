@@ -1,7 +1,9 @@
 import { createAdminClient } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAdmin } from '@/lib/auth'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const denied = await requireAdmin(req); if (denied) return denied
   try {
     const supabase = createAdminClient()
     const { data } = await supabase.from('schedules').select('*').order('day_of_week')
@@ -12,6 +14,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const denied = await requireAdmin(req); if (denied) return denied
   try {
     const { schedules } = await req.json()
     const supabase = createAdminClient()

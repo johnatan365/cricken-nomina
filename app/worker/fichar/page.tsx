@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase, apiFetch } from '@/lib/supabase'
 import { verifyInsideStore } from '@/lib/gps'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -79,7 +79,7 @@ export default function FicharPage() {
 
     const dayOfWeek = today.getDay()
     // Load worker-specific schedule for today
-    const schedRes = await fetch('/api/admin/worker-schedules?worker_id=' + workerData.id)
+    const schedRes = await apiFetch('/api/admin/worker-schedules?worker_id=' + workerData.id)
     const schedData = await schedRes.json()
     const todaySchedule = (schedData.schedules || []).find(
       (s: { day_of_week: number; is_active: boolean }) => s.day_of_week === dayOfWeek && s.is_active
@@ -87,7 +87,7 @@ export default function FicharPage() {
     setSchedule(todaySchedule || null)
 
     // Check if worker has rates configured
-    const ratesRes = await fetch('/api/admin/rates?worker_id=' + workerData.id)
+    const ratesRes = await apiFetch('/api/admin/rates?worker_id=' + workerData.id)
     const ratesData = await ratesRes.json()
     setWorkerNotConfigured(!ratesData.rates || ratesData.rates.length === 0)
   }, [])
@@ -108,7 +108,7 @@ export default function FicharPage() {
     // Get active locations from DB
     let activeLocations = undefined
     try {
-      const locRes = await fetch('/api/admin/locations')
+      const locRes = await apiFetch('/api/admin/locations')
       const locData = await locRes.json()
       activeLocations = locData.locations
     } catch { /* use defaults */ }

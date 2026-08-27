@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { apiFetch } from '@/lib/supabase'
 
 type Location = {
   id: string
@@ -17,7 +18,7 @@ export default function UbicacionesPage() {
   const [status, setStatus] = useState('')
 
   useEffect(() => {
-    fetch('/api/admin/locations')
+    apiFetch('/api/admin/locations')
       .then((r) => r.json())
       .then(({ locations }) => { setLocations(locations || []); setLoading(false) })
   }, [])
@@ -28,7 +29,7 @@ export default function UbicacionesPage() {
     const newActive = !loc.is_active
     setLocations((prev) => prev.map((l) => l.id === id ? { ...l, is_active: newActive } : l))
 
-    const res = await fetch('/api/admin/locations', {
+    const res = await apiFetch('/api/admin/locations', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, is_active: newActive }),

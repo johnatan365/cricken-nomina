@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAdmin, requireUser } from '@/lib/auth'
 
 function calculateEarnings(
   clockIn: Date,
@@ -49,6 +50,7 @@ function calculateEarnings(
 
 
 export async function GET(req: NextRequest) {
+  const denied = await requireUser(req); if (denied) return denied
   try {
     const worker_id = req.nextUrl.searchParams.get('worker_id')
     const supabase = createAdminClient()
@@ -63,6 +65,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const denied = await requireAdmin(req); if (denied) return denied
   try {
     const body = await req.json()
     const supabase = createAdminClient()
@@ -103,6 +106,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const denied = await requireAdmin(req); if (denied) return denied
   try {
     const id = req.nextUrl.searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 })

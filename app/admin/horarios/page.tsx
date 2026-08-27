@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { apiFetch } from '@/lib/supabase'
 import { DAY_NAMES, Schedule } from '@/types'
 
 export default function HorariosPage() {
@@ -13,7 +14,7 @@ export default function HorariosPage() {
 
   async function loadSchedules() {
     setLoading(true)
-    const res = await fetch('/api/admin/schedules')
+    const res = await apiFetch('/api/admin/schedules')
     const { schedules: data } = await res.json()
 
     const existing = data || []
@@ -39,7 +40,7 @@ export default function HorariosPage() {
 
   async function save() {
     setSaving(true)
-    const res = await fetch('/api/admin/schedules', {
+    const res = await apiFetch('/api/admin/schedules', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ schedules }),
