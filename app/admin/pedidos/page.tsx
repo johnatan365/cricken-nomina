@@ -359,14 +359,16 @@ export default function AdminPedidosPage() {
                   </div>
                 </div>
 
+                {/* WhatsApp — siempre visible, sin necesidad de expandir */}
+                <div className="flex items-center mt-3">
+                  <a href={getWhatsAppLink(order)} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-2 bg-green-500/20 border border-green-500/30 text-green-300 text-xs font-bold px-3 py-2 rounded-xl hover:bg-green-500/30 transition-all">
+                    📱 Enviar por WhatsApp
+                  </a>
+                </div>
+
                 {expanded === order.id && (
                   <div className="mt-4 pt-4 border-t border-white/10 space-y-4">
-                    <div className="flex items-center">
-                      <a href={getWhatsAppLink(order)} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-2 bg-green-500/20 border border-green-500/30 text-green-300 text-xs font-bold px-3 py-2 rounded-xl hover:bg-green-500/30 transition-all">
-                        📱 Enviar por WhatsApp
-                      </a>
-                    </div>
                     {Object.entries(groups).map(([supplier, items]) => {
                       const supplierTotal = order.status !== 'delivered' ? null : items.reduce((s, i) => {
                         const qty   = i.qty_delivered ?? 0
