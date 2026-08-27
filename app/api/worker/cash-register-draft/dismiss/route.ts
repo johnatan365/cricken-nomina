@@ -1,9 +1,11 @@
 import { createAdminClient } from '@/lib/supabase'
+import { requireUser } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
 export async function DELETE(req: NextRequest) {
+  const denied = await requireUser(req); if (denied) return denied
   try {
     const { searchParams } = new URL(req.url)
     const worker_id = searchParams.get('worker_id')

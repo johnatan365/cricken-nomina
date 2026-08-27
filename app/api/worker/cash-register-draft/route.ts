@@ -1,11 +1,13 @@
 // app/api/worker/cash-register-draft/route.ts
 import { createAdminClient } from '@/lib/supabase'
+import { requireUser } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
 // GET — obtener borrador pendiente del trabajador
 export async function GET(req: NextRequest) {
+  const denied = await requireUser(req); if (denied) return denied
   try {
     const { searchParams } = new URL(req.url)
     const worker_id = searchParams.get('worker_id')
@@ -28,6 +30,7 @@ export async function GET(req: NextRequest) {
 
 // POST — guardar borrador (upsert)
 export async function POST(req: NextRequest) {
+  const denied = await requireUser(req); if (denied) return denied
   try {
     const body = await req.json()
     const {
@@ -88,6 +91,7 @@ export async function POST(req: NextRequest) {
 
 // DELETE — marcar borrador como visto (dismiss) después de que el admin lo resolvió
 export async function DELETE(req: NextRequest) {
+  const denied = await requireUser(req); if (denied) return denied
   try {
     const { searchParams } = new URL(req.url)
     const worker_id = searchParams.get('worker_id')

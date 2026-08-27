@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase'
+import { requireUser } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
@@ -19,6 +20,7 @@ function getDeliveryDate(): string {
 }
 
 export async function GET(req: NextRequest) {
+  const denied = await requireUser(req); if (denied) return denied
   const { searchParams } = new URL(req.url)
   const worker_id = searchParams.get('worker_id')
   if (!worker_id) return NextResponse.json({ error: 'worker_id requerido' }, { status: 400 })
@@ -76,6 +78,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const denied = await requireUser(req); if (denied) return denied
   const body_data = await req.json()
   const { worker_id, items, delivery_date } = body_data
   const supabase = createAdminClient()
@@ -135,6 +138,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const denied = await requireUser(req); if (denied) return denied
   const body_patch = await req.json()
   const { order_id, deliveries, delivered_by, confirm_date } = body_patch
   const supabase = createAdminClient()

@@ -1,9 +1,11 @@
 import { createAdminClient } from '@/lib/supabase'
+import { requireUser } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
+  const denied = await requireUser(req); if (denied) return denied
   try {
     const body = await req.json()
     const { worker_id, clock_in_lat, clock_in_lng, clock_in_notes,

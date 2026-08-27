@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase, apiFetch } from '@/lib/supabase'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 
@@ -77,7 +77,7 @@ export default function PedidoPage() {
     const { data: w } = await supabase.from('workers').select('id, full_name').eq('auth_user_id', user.id).single()
     if (!w) return
     setWorker(w)
-    const res  = await fetch('/api/worker/kitchen-order?worker_id=' + w.id + '&order_type=kitchen')
+    const res  = await apiFetch('/api/worker/kitchen-order?worker_id=' + w.id + '&order_type=kitchen')
     const json = await res.json()
     setProducts(json.products || [])
     setDeliveryDate(json.deliveryDate)
@@ -110,7 +110,7 @@ export default function PedidoPage() {
       { onConfirm: async () => {
         setModal(null); setSaving(true)
         const items = products.map(p => ({ product_id: p.id, name: p.name, qty_requested: quantities[p.id] || 0 }))
-        const res = await fetch('/api/worker/kitchen-order', {
+        const res = await apiFetch('/api/worker/kitchen-order', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ worker_id: worker.id, items, delivery_date: deliveryDate, order_type: 'kitchen' }),
         })
@@ -183,7 +183,7 @@ export default function PedidoPage() {
       observation:   observations[pid] || null,
     }))
 
-    const res = await fetch('/api/worker/kitchen-order', {
+    const res = await apiFetch('/api/worker/kitchen-order', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ order_id: order.id, deliveries: dels, delivered_by: worker?.id }),
     })

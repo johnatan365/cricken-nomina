@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase, apiFetch } from '@/lib/supabase'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { formatCOP } from '@/types'
@@ -207,13 +207,13 @@ export default function CierreCajaPage() {
     const { data: w } = await supabase.from('workers').select('id, full_name').eq('auth_user_id', user.id).single()
     if (!w) return
     setWorker(w)
-    const res  = await fetch('/api/worker/cash-register?worker_id=' + w.id)
+    const res  = await apiFetch('/api/worker/cash-register?worker_id=' + w.id)
     const json = await res.json()
     setRegisters(json.registers || [])
     setHasPendingBase(json.hasPendingBaseRequest || false)
     setHasPendingDiff(json.hasPendingDifference || false)
     // Verificar estado del borrador
-    const draftRes  = await fetch('/api/worker/cash-register-draft?worker_id=' + w.id)
+    const draftRes  = await apiFetch('/api/worker/cash-register-draft?worker_id=' + w.id)
     const draftJson = await draftRes.json()
     const draft = draftJson.draft
 
@@ -258,7 +258,7 @@ export default function CierreCajaPage() {
       resetForm()
       // Marcar el borrador como visto — llamar API para eliminarlo
       if (worker) {
-        fetch('/api/worker/cash-register-draft/dismiss?worker_id=' + worker.id, { method: 'DELETE' })
+        apiFetch('/api/worker/cash-register-draft/dismiss?worker_id=' + worker.id, { method: 'DELETE' })
       }
     }
     setAdminResponse(null)
@@ -365,7 +365,7 @@ export default function CierreCajaPage() {
       isDraft:             hasDiff,
     }
 
-    const res  = await fetch('/api/worker/cash-register', {
+    const res  = await apiFetch('/api/worker/cash-register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),

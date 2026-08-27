@@ -57,7 +57,7 @@ export default function FicharPage() {
 
     // Busca turno abierto via API con service role para evitar problemas de RLS
     // Cubre turnos que cruzan medianoche
-    const openLogRes = await fetch('/api/worker/open-log?worker_id=' + workerData.id)
+    const openLogRes = await apiFetch('/api/worker/open-log?worker_id=' + workerData.id)
     const openLogData = await openLogRes.json()
     const openLog = openLogData.openLog || null
     setOpenLog(openLog ? { id: openLog.id, clock_in: openLog.clock_in } : null)
@@ -212,7 +212,7 @@ export default function FicharPage() {
     correctedClockOut: string | null = null
   ) {
     // Use API with service role to avoid RLS issues
-    const res = await fetch('/api/worker/clockout', {
+    const res = await apiFetch('/api/worker/clockout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -237,7 +237,7 @@ export default function FicharPage() {
   }
 
   async function doClockIn(clockInTime: Date, lat: number, lng: number, notes_val: string, earlyReason?: string) {
-    const res = await fetch('/api/worker/clockin', {
+    const res = await apiFetch('/api/worker/clockin', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

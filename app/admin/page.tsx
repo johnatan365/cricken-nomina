@@ -573,7 +573,7 @@ export default function AdminNominaPage() {
                   clockOutBogota.setUTCDate(clockOutBogota.getUTCDate() + 1)
                 }
                 const clockOutUTC = new Date(clockOutBogota.getTime() + bogotaOffset)
-                await fetch('/api/worker/clockout', {
+                await apiFetch('/api/worker/clockout', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
