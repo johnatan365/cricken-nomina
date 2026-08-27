@@ -16,9 +16,9 @@ export default function Home() {
         return
       }
 
-      const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL || 'cricken00@gmail.com'
+      const adminEmail = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || 'cricken00@gmail.com').trim().toLowerCase()
 
-      if (user.email === adminEmail) {
+      if ((user.email || '').trim().toLowerCase() === adminEmail) {
         router.replace('/admin')
       } else {
         router.replace('/worker/fichar')

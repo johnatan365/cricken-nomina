@@ -18,10 +18,12 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
 
-    // Check if admin
-    const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL || 'admin@cricken.co'
-    if (email === adminEmail) {
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+    // Normalizar el correo (ignorar mayúsculas y espacios) — evita que el
+    // teclado del móvil lo capitalice y mande al admin a la vista de usuario
+    const cleanEmail = email.trim().toLowerCase()
+    const adminEmail = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || 'cricken00@gmail.com').trim().toLowerCase()
+    if (cleanEmail === adminEmail) {
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email: cleanEmail, password })
       if (signInError) {
         setError('Credenciales incorrectas')
         setLoading(false)
@@ -32,7 +34,7 @@ export default function LoginPage() {
     }
 
     // Worker login
-    const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+    const { data, error: signInError } = await supabase.auth.signInWithPassword({ email: cleanEmail, password })
     if (signInError) {
       setError('Correo o contraseña incorrectos')
       setLoading(false)
@@ -68,6 +70,10 @@ export default function LoginPage() {
               className="input-field"
               required
               autoComplete="email"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              inputMode="email"
             />
           </div>
 
