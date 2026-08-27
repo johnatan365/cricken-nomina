@@ -15,6 +15,25 @@ export async function GET(req: NextRequest) {
 
     const supabase = createAdminClient()
 
+    // Modo: devolver solo los trabajadores que tienen al menos un cierre (para poblar el filtro)
+    if (searchParams.get('workers_with_registers')) {
+      const { data: regs, error: e1 } = await supabase
+        .from('cash_registers')
+        .select('worker_id')
+      if (e1) return NextResponse.json({ error: e1.message }, { status: 400 })
+      const ids = Array.from(new Set((regs || [])
+        .map((r: { worker_id: string }) => r.worker_id)
+        .filter(Boolean)))
+      if (ids.length === 0) return NextResponse.json({ workers: [] })
+      const { data: ws, error: e2 } = await supabase
+        .from('workers')
+        .select('id, full_name')
+        .in('id', ids)
+        .order('full_name')
+      if (e2) return NextResponse.json({ error: e2.message }, { status: 400 })
+      return NextResponse.json({ workers: ws })
+    }
+
     let query = supabase
       .from('cash_registers')
       .select('*, worker:workers(full_name), location:locations(name)')

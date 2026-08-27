@@ -137,7 +137,8 @@ export default function AdminCierreCajaPage() {
   }, [])
 
   const loadWorkers = useCallback(async () => {
-    const res  = await fetch('/api/admin/workers')
+    // Solo trabajadores que han hecho al menos un cierre
+    const res  = await fetch('/api/admin/cash-registers?workers_with_registers=1')
     const json = await res.json()
     setWorkers(json.workers || [])
   }, [])
