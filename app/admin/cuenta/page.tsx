@@ -1,6 +1,7 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { enablePush, isWebPushSupported, needsHomeScreenOnIOS, webPushPermission } from '@/lib/webPush'
 
 export default function AdminCuentaPage() {
   const [email, setEmail]         = useState('')
@@ -10,6 +11,41 @@ export default function AdminCuentaPage() {
   const [showConf, setShowConf]   = useState(false)
   const [saving, setSaving]       = useState(false)
   const [msg, setMsg]             = useState<{type:'success'|'error'; text:string}|null>(null)
+
+  // Notificaciones web push
+  const [pushMsg, setPushMsg]     = useState<{type:'success'|'error'|'info'; text:string}|null>(null)
+  const [pushBusy, setPushBusy]   = useState(false)
+
+  useEffect(() => {
+    const perm = webPushPermission()
+    if (perm === 'granted') {
+      setPushMsg({ type:'success', text:'Activadas ✓' })
+    } else if (perm === 'unsupported') {
+      setPushMsg({ type:'info', text:'Este navegador no soporta notificaciones.' })
+    } else if (perm === 'denied') {
+      setPushMsg({ type:'error', text:"Diste 'bloquear'. Actívalas en los ajustes del navegador para este sitio." })
+    } else if (needsHomeScreenOnIOS()) {
+      setPushMsg({ type:'info', text:'En iPhone, primero agrega Cricken a la pantalla de inicio (Compartir → Agregar a inicio) y ábrela desde ahí.' })
+    }
+  }, [])
+
+  const handleEnablePush = async () => {
+    setPushMsg(null)
+    setPushBusy(true)
+    const res = await enablePush()
+    setPushBusy(false)
+    if (res.ok) {
+      setPushMsg({ type:'success', text:'✓ Notificaciones activadas en este dispositivo.' })
+    } else if (res.reason === 'unsupported') {
+      setPushMsg({ type:'error', text:'Este navegador no soporta notificaciones.' })
+    } else if (res.reason === 'ios-home-screen') {
+      setPushMsg({ type:'error', text:'En iPhone, primero agrega Cricken a la pantalla de inicio (Compartir → Agregar a inicio) y ábrela desde ahí.' })
+    } else if (res.reason === 'denied') {
+      setPushMsg({ type:'error', text:"Diste 'bloquear'. Actívalas en los ajustes del navegador para este sitio." })
+    } else {
+      setPushMsg({ type:'error', text:`No se pudo activar: ${res.reason}.` })
+    }
+  }
 
   const handleSave = async () => {
     setMsg(null)
@@ -93,6 +129,32 @@ export default function AdminCuentaPage() {
         <button onClick={handleSave} disabled={saving}
           className="w-full py-3 rounded-2xl bg-yellow-400 text-purple-900 font-bold text-sm hover:bg-yellow-300 transition-all disabled:opacity-50">
           {saving ? 'Guardando...' : 'Guardar cambios'}
+        </button>
+      </div>
+
+      <div className="bg-white/5 border border-white/10 rounded-3xl p-5 space-y-4">
+        <div>
+          <h2 className="text-lg font-bold text-white">Notificaciones</h2>
+          <p className="text-white/40 text-sm mt-1">
+            Recibirás un aviso si a medianoche falta el pedido de Caja o Cocina. Debes activarlo una vez en cada dispositivo.
+          </p>
+        </div>
+
+        {pushMsg && (
+          <div className={`rounded-2xl px-4 py-3 text-sm font-semibold ${
+            pushMsg.type === 'success'
+              ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/20'
+              : pushMsg.type === 'info'
+              ? 'bg-white/10 text-white/70 border border-white/15'
+              : 'bg-red-500/15 text-red-300 border border-red-500/20'
+          }`}>
+            {pushMsg.text}
+          </div>
+        )}
+
+        <button onClick={handleEnablePush} disabled={pushBusy}
+          className="w-full py-3 rounded-2xl bg-yellow-400 text-purple-900 font-bold text-sm hover:bg-yellow-300 transition-all disabled:opacity-50">
+          {pushBusy ? 'Activando...' : '🔔 Activar notificaciones en este dispositivo'}
         </button>
       </div>
     </div>
