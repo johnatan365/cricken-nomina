@@ -3,7 +3,7 @@
 //
 // Las suscripciones se guardan en Supabase Storage (bucket privado 'internal',
 // archivo push-subscriptions.json) en vez de una tabla, para no tocar el schema.
-import webpush from 'web-push'
+import * as webpush from 'web-push'
 import { createAdminClient } from '@/lib/supabase'
 import { VAPID_PUBLIC_KEY } from '@/lib/webPush'
 

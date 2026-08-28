@@ -81,7 +81,9 @@ export async function enablePush(): Promise<{ ok: boolean; reason?: string }> {
 
     const sub = await reg.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      // cast: en runtime es un Uint8Array válido; TS 5.7 estrechó el tipo de
+      // applicationServerKey y no acepta Uint8Array<ArrayBufferLike> directo.
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as unknown as BufferSource,
     })
 
     const res = await apiFetch('/api/push/subscribe', {
