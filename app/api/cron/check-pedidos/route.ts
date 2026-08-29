@@ -34,24 +34,6 @@ export async function GET(req: NextRequest) {
     const today = new Date(Date.now() - 5 * 3600 * 1000).toISOString().slice(0, 10)
     const supabase = createAdminClient()
 
-    // Diagnóstico temporal: ?debug=1 muestra los pedidos recientes con su estado.
-    if (searchParams.get('debug') === '1') {
-      const { data: recent } = await supabase
-        .from('kitchen_orders')
-        .select('id, order_type, delivery_date, status, whatsapp_sent, items:kitchen_order_items(id)')
-        .in('order_type', ['cash', 'kitchen'])
-        .order('delivery_date', { ascending: false })
-        .limit(12)
-      const rows = (recent || []).map((o: any) => ({
-        type: o.order_type,
-        date: o.delivery_date,
-        status: o.status,
-        wa_sent: o.whatsapp_sent,
-        items: (o.items || []).length,
-      }))
-      return NextResponse.json({ ok: true, today, rows })
-    }
-
     const missing: string[] = []
     for (const tipo of ['cash', 'kitchen'] as const) {
       const { data } = await supabase
