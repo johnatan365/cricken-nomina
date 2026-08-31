@@ -136,6 +136,28 @@ export default function TrabajadoresPage() {
     else { showStatus('success', 'Trabajador eliminado'); setSelected(null); await loadData() }
   }
 
+  async function resetWorkerPassword(worker: WorkerWithRates) {
+    const nueva = window.prompt(
+      `Nueva contraseña para ${worker.full_name} (mínimo 6 caracteres).\nApúntala para pasársela por WhatsApp:`
+    )
+    if (nueva === null) return
+    if (nueva.trim().length < 6) { showStatus('error', 'La contraseña debe tener al menos 6 caracteres.'); return }
+    const res = await apiFetch('/api/admin/reset-worker-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ worker_id: worker.id, password: nueva.trim() }),
+    })
+    if (res.ok) {
+      window.alert(
+        `✓ Contraseña de ${worker.full_name} cambiada.\n\nNueva contraseña: ${nueva.trim()}\n\nPásasela por WhatsApp. Cuando entre, puede cambiarla en "Mi cuenta".`
+      )
+      showStatus('success', 'Contraseña restablecida')
+    } else {
+      const j = await res.json().catch(() => ({}))
+      showStatus('error', 'Error: ' + (j.error || 'no se pudo restablecer'))
+    }
+  }
+
   function openEditWorker(worker: WorkerWithRates) {
     setEditWorkerForm({ full_name: worker.full_name, phone: worker.phone, email: worker.email })
     setEditWorkerModal(true)
@@ -250,6 +272,7 @@ export default function TrabajadoresPage() {
                 </div>
                 <div className="flex gap-2 flex-wrap justify-end">
                   <button onClick={() => openEditWorker(selected)} className="text-xs bg-white/10 text-white border border-white/20 px-3 py-1.5 rounded-xl hover:bg-white/20 transition-all">Editar</button>
+                  <button onClick={() => resetWorkerPassword(selected)} className="text-xs bg-yellow-400/15 text-yellow-300 border border-yellow-400/30 px-3 py-1.5 rounded-xl hover:bg-yellow-400/25 transition-all">🔑 Contraseña</button>
                   <button onClick={() => toggleActive(selected)} className={`text-xs px-3 py-1.5 rounded-xl border transition-all ${selected.is_active ? 'bg-red-500/20 text-red-300 border-red-400/30' : 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30'}`}>
                     {selected.is_active ? 'Desactivar' : 'Activar'}
                   </button>
