@@ -8,6 +8,16 @@ export default function Home() {
   const router = useRouter()
 
   useEffect(() => {
+    // Si el enlace de recuperación de contraseña cae aquí (en vez de /auth/reset),
+    // no meter a la persona a la app: mandarla a cambiar la contraseña.
+    if (typeof window !== 'undefined' && window.location.hash.includes('type=recovery')) {
+      router.replace('/auth/reset')
+      return
+    }
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') router.replace('/auth/reset')
+    })
+
     async function checkSession() {
       const { data: { user } } = await supabase.auth.getUser()
 
@@ -26,6 +36,7 @@ export default function Home() {
     }
 
     checkSession()
+    return () => { sub.subscription.unsubscribe() }
   }, [router])
 
   return (

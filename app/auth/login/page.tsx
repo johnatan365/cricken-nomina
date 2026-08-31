@@ -12,6 +12,8 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [resetMsg, setResetMsg] = useState('')
+  const [resetLoading, setResetLoading] = useState(false)
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -45,6 +47,26 @@ export default function LoginPage() {
       router.push('/worker/fichar')
     }
     setLoading(false)
+  }
+
+  const handleForgot = async () => {
+    setError('')
+    setResetMsg('')
+    const cleanEmail = email.trim().toLowerCase()
+    if (!cleanEmail) {
+      setError('Escribe tu correo arriba y vuelve a tocar "¿Olvidaste tu contraseña?".')
+      return
+    }
+    setResetLoading(true)
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+      redirectTo: `${window.location.origin}/auth/reset`,
+    })
+    setResetLoading(false)
+    if (resetError) {
+      setError('No se pudo enviar el correo. Intenta de nuevo en un momento.')
+      return
+    }
+    setResetMsg('📩 Te enviamos un correo a ' + cleanEmail + ' con un enlace para cambiar tu contraseña. Revisa tu bandeja de entrada y también la carpeta de spam.')
   }
 
   return (
@@ -99,9 +121,22 @@ export default function LoginPage() {
             </div>
           </div>
 
+          <div className="text-right -mt-1">
+            <button type="button" onClick={handleForgot} disabled={resetLoading}
+              className="text-yellow-400/90 hover:text-yellow-300 text-xs font-semibold disabled:opacity-50">
+              {resetLoading ? 'Enviando...' : '¿Olvidaste tu contraseña?'}
+            </button>
+          </div>
+
           {error && (
             <div className="bg-red-500/15 border border-red-400/30 rounded-2xl px-4 py-3 text-red-300 text-sm">
               {error}
+            </div>
+          )}
+
+          {resetMsg && (
+            <div className="bg-emerald-500/15 border border-emerald-400/30 rounded-2xl px-4 py-3 text-emerald-200 text-sm">
+              {resetMsg}
             </div>
           )}
 
