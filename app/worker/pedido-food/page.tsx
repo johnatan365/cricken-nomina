@@ -30,7 +30,7 @@ export default function PedidoFoodPage() {
   const [loading, setLoading]           = useState(true)
   const [saving, setSaving]             = useState(false)
   const [tab, setTab]                   = useState<'order'|'delivery'>('order')
-  const [modal, setModal]               = useState<{ type: 'success'|'error'|'confirm'; text: string; onConfirm?: () => void } | null>(null)
+  const [modal, setModal]               = useState<{ type: 'success'|'error'|'confirm'; text: string; onConfirm?: () => void; waMessage?: string } | null>(null)
   const [draftLoaded, setDraftLoaded]   = useState(false)
   const [search, setSearch]             = useState('')
   const qtyRefs = useRef<(HTMLInputElement | null)[]>([])
@@ -119,17 +119,13 @@ export default function PedidoFoodPage() {
         const json = await res.json()
         setSaving(false)
         if (!res.ok) { setModal({ type: 'error', text: json.error || 'Error al enviar' }); return }
-        // Copiar mensaje al portapapeles para pegarlo en el grupo de WhatsApp
-        if (json.waMessage) {
-          try {
-            await navigator.clipboard.writeText(json.waMessage)
-          } catch {}
-        }
         localStorage.removeItem(DRAFT_KEY + '_qty')
         setQuantities({})
         await loadData()
         setTab('delivery')
-        setModal({ type: 'success', text: '✅ Pedido enviado.\n\n📋 El mensaje fue copiado al portapapeles. Pégalo en el grupo Pedidos Food de WhatsApp.', onConfirm: () => setModal(null) })
+        // La copia se hace con un toque directo en el botón del modal (en el
+        // celular copiar automáticamente tras los await queda bloqueado).
+        setModal({ type: 'success', text: '✅ Pedido guardado. Toca "Copiar mensaje" y pégalo en el grupo Pedidos Food de WhatsApp.', waMessage: json.waMessage, onConfirm: () => setModal(null) })
       }
     })
   }
@@ -190,6 +186,14 @@ export default function PedidoFoodPage() {
               <div className="flex gap-3">
                 <button onClick={() => setModal(null)} className="flex-1 py-2.5 rounded-2xl text-sm font-bold bg-white/10 text-white/60">Cancelar</button>
                 <button onClick={modal.onConfirm} className="flex-1 py-2.5 rounded-2xl text-sm font-bold bg-yellow-400 text-purple-900">Enviar</button>
+              </div>
+            ) : modal.waMessage ? (
+              <div className="flex flex-col gap-2">
+                <button onClick={() => {
+                  if (modal.waMessage) { try { navigator.clipboard.writeText(modal.waMessage) } catch {} }
+                  setModal(null)
+                }} className="w-full py-3 rounded-2xl text-sm font-bold bg-green-500 text-white">📋 Copiar mensaje</button>
+                <button onClick={() => setModal(null)} className="w-full py-2.5 rounded-2xl text-sm font-bold bg-white/10 text-white/60">Cerrar</button>
               </div>
             ) : (
               <button onClick={() => modal.onConfirm ? modal.onConfirm() : setModal(null)} className="w-full py-2.5 rounded-2xl text-sm font-bold bg-white/10 text-white">Entendido</button>

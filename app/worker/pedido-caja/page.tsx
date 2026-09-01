@@ -19,7 +19,7 @@ export default function PedidoPage() {
   const [observations, setObservations] = useState<Record<string, string>>({})
   const [loading, setLoading]           = useState(true)
   const [saving, setSaving]             = useState(false)
-  const [modal, setModal]               = useState<{ type: 'success'|'error'|'confirm'|'missing'; text: string; items?: {name: string; pid: string}[]; onConfirm?: () => void } | null>(null)
+  const [modal, setModal]               = useState<{ type: 'success'|'error'|'confirm'|'missing'; text: string; items?: {name: string; pid: string}[]; onConfirm?: () => void; waLink?: string; waMessage?: string } | null>(null)
   const [tab, setTab]                   = useState<'order'|'delivery'>('order')
   const [search, setSearch]             = useState('')
   const qtyRefs = useRef<(HTMLInputElement | null)[]>([])
@@ -68,7 +68,7 @@ export default function PedidoPage() {
     }
   }, [observations, draftLoaded])
 
-  const showModal = (type: 'success'|'error'|'confirm'|'missing', text: string, extra?: { items?: {name: string; pid: string}[]; onConfirm?: () => void }) =>
+  const showModal = (type: 'success'|'error'|'confirm'|'missing', text: string, extra?: { items?: {name: string; pid: string}[]; onConfirm?: () => void; waLink?: string; waMessage?: string }) =>
     setModal({ type, text, ...extra })
 
   const loadData = useCallback(async () => {
@@ -117,18 +117,16 @@ export default function PedidoPage() {
         const json = await res.json()
         setSaving(false)
         if (!res.ok) { showModal('error', json.error || 'Error al enviar'); return }
-        // Copiar mensaje al portapapeles
-        if (json.waMessage) {
-          try { await navigator.clipboard.writeText(json.waMessage) } catch {}
-        }
-        // Abrir WhatsApp
-        if (json.waLink) window.open(json.waLink, '_blank')
         localStorage.removeItem(DRAFT_KEY + '_qty')
         setQuantities({})
         await loadData()
         setTab('delivery')
-        showModal('success', '✅ Pedido enviado al administrador por WhatsApp.\n\n📋 El mensaje también fue copiado al portapapeles.', {
-          onConfirm: () => setModal(null)
+        // WhatsApp se abre con un toque directo en el botón del modal (en el
+        // celular abrirlo automáticamente tras los await queda bloqueado).
+        showModal('success', '✅ Pedido guardado. Ahora toca "Abrir WhatsApp" y dale enviar para que le llegue al administrador.', {
+          waLink: json.waLink,
+          waMessage: json.waMessage,
+          onConfirm: () => setModal(null),
         })
       }}
     )
@@ -229,6 +227,16 @@ export default function PedidoPage() {
               <div className="flex gap-3">
                 <button onClick={() => setModal(null)} className="flex-1 py-2.5 rounded-2xl text-sm font-bold bg-white/10 text-white/60">Cancelar</button>
                 <button onClick={modal.onConfirm} className="flex-1 py-2.5 rounded-2xl text-sm font-bold bg-yellow-400 text-purple-900">Enviar</button>
+              </div>
+            ) : (modal.waLink || modal.waMessage) ? (
+              <div className="flex flex-col gap-2">
+                <button onClick={() => {
+                  const link = modal.waLink || (modal.waMessage ? 'https://wa.me/573192099123?text=' + encodeURIComponent(modal.waMessage) : '')
+                  if (modal.waMessage) { try { navigator.clipboard.writeText(modal.waMessage) } catch {} }
+                  if (link) window.open(link, '_blank')
+                  setModal(null)
+                }} className="w-full py-3 rounded-2xl text-sm font-bold bg-green-500 text-white">📲 Abrir WhatsApp para enviar</button>
+                <button onClick={() => setModal(null)} className="w-full py-2.5 rounded-2xl text-sm font-bold bg-white/10 text-white/60">Cerrar</button>
               </div>
             ) : (
               <button onClick={() => modal.onConfirm ? modal.onConfirm() : setModal(null)} className="w-full py-2.5 rounded-2xl text-sm font-bold bg-white/10 text-white">Entendido</button>
