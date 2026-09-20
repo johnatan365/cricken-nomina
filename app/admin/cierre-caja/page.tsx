@@ -1,12 +1,12 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { apiFetch } from '@/lib/supabase'
 import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns'
 import { es } from 'date-fns/locale'
 
 type CashRegister = {
   id: string
+  worker_id: string
   worker: { full_name: string } | null
   location: { name: string } | null
   worker_name: string
@@ -45,9 +45,9 @@ type DifferenceRequest = {
   cash_counted: number
   status: string
   created_at: string
-  admin_note?: string | null
-  resolved_at?: string | null
 }
+
+type Worker = { id: string; full_name: string }
 
 type BaseChangeRequest = {
   id: string
@@ -76,7 +76,6 @@ export default function AdminCierreCajaPage() {
   const [dateTo, setDateTo]           = useState(format(endOfMonth(new Date()), 'yyyy-MM-dd'))
   const [shiftFilter, setShiftFilter] = useState('')
   const [workerFilter, setWorkerFilter] = useState('')
-  const [workers, setWorkers]         = useState<{ id: string; full_name: string }[]>([])
   const [expanded, setExpanded]       = useState<string | null>(null)
   const expandedRef                   = useRef<string | null>(null)
   const [onlyIssues, setOnlyIssues]   = useState(false)
@@ -86,9 +85,6 @@ export default function AdminCierreCajaPage() {
   const [diffRequests, setDiffRequests] = useState<DifferenceRequest[]>([])
   const [diffNotes, setDiffNotes]     = useState<Record<string, string>>({})
   const [processingDiffId, setProcessingDiffId] = useState<string | null>(null)
-  const [rejectedDrafts, setRejectedDrafts] = useState<DifferenceRequest[]>([])
-  const [showRejected, setShowRejected] = useState(false)
-  const [restoringId, setRestoringId] = useState<string | null>(null)
   const editingBaseRef                = useRef<Record<string, string>>({})
   const [editingBaseVersion, setEditingBaseVersion] = useState(0)
   const [savingBase, setSavingBase]   = useState<string | null>(null)
@@ -96,6 +92,8 @@ export default function AdminCierreCajaPage() {
 
   const editingBase = editingBaseRef.current
   const [editingDate, setEditingDate]   = useState<{id: string; date: string} | null>(null)
+  const [workers, setWorkers]           = useState<Worker[]>([])
+  const [editingWorker, setEditingWorker] = useState<{id: string; workerId: string} | null>(null)
 
   const [detailModal, setDetailModal] = useState<{
     title: string
@@ -109,7 +107,7 @@ export default function AdminCierreCajaPage() {
     const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo })
     if (shiftFilter)  params.set('shift', shiftFilter)
     if (workerFilter) params.set('worker_id', workerFilter)
-    const res  = await apiFetch('/api/admin/cash-registers?' + params)
+    const res  = await fetch('/api/admin/cash-registers?' + params)
     const json = await res.json()
     setRegisters((json.registers || []).map((r: CashRegister) => ({
       ...r,
@@ -120,73 +118,44 @@ export default function AdminCierreCajaPage() {
   }, [dateFrom, dateTo, shiftFilter, workerFilter])
 
   const loadDiffRequests = useCallback(async () => {
-    const res  = await apiFetch('/api/admin/cash-register-drafts')
+    const res  = await fetch('/api/admin/cash-register-drafts')
     const json = await res.json()
     setDiffRequests(json.drafts || [])
   }, [])
 
-  const loadRejectedDrafts = useCallback(async () => {
-    const res  = await apiFetch('/api/admin/cash-register-drafts?status=rejected')
-    const json = await res.json()
-    setRejectedDrafts(json.drafts || [])
-  }, [])
-
   const loadBaseRequests = useCallback(async () => {
-    const res  = await apiFetch('/api/admin/base-change-requests?status=pending')
+    const res  = await fetch('/api/admin/base-change-requests?status=pending')
     const json = await res.json()
     setBaseRequests(json.requests || [])
   }, [])
 
   const loadWorkers = useCallback(async () => {
-    // Solo trabajadores que han hecho al menos un cierre
-    const res  = await apiFetch('/api/admin/cash-registers?workers_with_registers=1')
+    const res  = await fetch('/api/admin/workers')
     const json = await res.json()
     setWorkers(json.workers || [])
   }, [])
 
+  useEffect(() => { loadWorkers() }, [loadWorkers])
+
   useEffect(() => { loadData() }, [loadData])
   useEffect(() => { loadDiffRequests() }, [loadDiffRequests])
   useEffect(() => { loadBaseRequests() }, [loadBaseRequests])
-  useEffect(() => { loadRejectedDrafts() }, [loadRejectedDrafts])
-  useEffect(() => { loadWorkers() }, [loadWorkers])
 
   async function resolveDiff(id: string, action: 'approved' | 'rejected') {
-    if (action === 'rejected') {
-      const req = diffRequests.find(d => d.id === id)
-      const who = req ? `${req.worker_name} · ${format(parseISO(req.register_date), "d MMM yyyy", { locale: es })}` : 'este cierre'
-      if (!confirm(`¿Seguro que quieres RECHAZAR el cierre de ${who}?\n\nEl cierre NO se registrará. Podrás recuperarlo después desde la sección "Cierres rechazados".`)) return
-    }
     setProcessingDiffId(id)
-    await apiFetch('/api/admin/cash-register-drafts', {
+    await fetch('/api/admin/cash-register-drafts', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, action, admin_note: diffNotes[id] || null }),
     })
     setProcessingDiffId(null)
     loadDiffRequests()
-    loadRejectedDrafts()
-    loadData()
-  }
-
-  async function restoreDraft(id: string) {
-    const req = rejectedDrafts.find(d => d.id === id)
-    const who = req ? `${req.worker_name} · ${format(parseISO(req.register_date), "d MMM yyyy", { locale: es })}` : 'este cierre'
-    if (!confirm(`¿Restaurar el cierre de ${who}?\n\nVolverá a la lista de pendientes para que lo apruebes o rechaces.`)) return
-    setRestoringId(id)
-    await apiFetch('/api/admin/cash-register-drafts', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, action: 'restore' }),
-    })
-    setRestoringId(null)
-    loadRejectedDrafts()
-    loadDiffRequests()
     loadData()
   }
 
   async function resolveRequest(id: string, status: 'approved' | 'rejected') {
     setProcessingId(id)
-    await apiFetch('/api/admin/base-change-requests', {
+    await fetch('/api/admin/base-change-requests', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, status, admin_note: adminNotes[id] || null }),
@@ -199,7 +168,7 @@ export default function AdminCierreCajaPage() {
   async function deleteRegister(id: string) {
     if (!confirm('¿Eliminar este cierre? Esta acción no se puede deshacer.')) return
     setDeletingId(id)
-    await apiFetch('/api/admin/cash-registers?id=' + id, { method: 'DELETE' })
+    await fetch('/api/admin/cash-registers?id=' + id, { method: 'DELETE' })
     setDeletingId(null)
     setExpanded(null)
     expandedRef.current = null
@@ -211,7 +180,7 @@ export default function AdminCierreCajaPage() {
     if (!newBase) return
     const savedExpanded = expandedRef.current
     setSavingBase(registerId)
-    const res = await apiFetch('/api/admin/cash-registers/edit-base', {
+    const res = await fetch('/api/admin/cash-registers/edit-base', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: registerId, next_base: parseFloat(newBase) }),
@@ -331,68 +300,6 @@ export default function AdminCierreCajaPage() {
         </div>
       )}
 
-      {/* Panel cierres rechazados (recuperables) */}
-      {rejectedDrafts.length > 0 && (
-        <div className="space-y-2">
-          <button
-            onClick={() => setShowRejected(s => !s)}
-            className="w-full flex items-center justify-between rounded-2xl px-4 py-3 border border-white/10 bg-white/5 hover:bg-white/10 transition-all">
-            <div className="flex items-center gap-2">
-              <span className="text-xl">🗑️</span>
-              <p className="text-white/70 font-bold text-sm">
-                {rejectedDrafts.length} cierre{rejectedDrafts.length > 1 ? 's' : ''} rechazado{rejectedDrafts.length > 1 ? 's' : ''} (se pueden recuperar)
-              </p>
-            </div>
-            <span className="text-white/40 text-xs">{showRejected ? '▲ Ocultar' : '▼ Ver'}</span>
-          </button>
-
-          {showRejected && rejectedDrafts.map((req: DifferenceRequest) => (
-            <div key={req.id} className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3 opacity-90">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-white font-bold text-sm">{req.worker_name}</p>
-                  <p className="text-white/50 text-xs mt-0.5">
-                    {SHIFT_LABELS[req.shift]} · {format(parseISO(req.register_date), "d MMM yyyy", { locale: es })}
-                  </p>
-                  {req.resolved_at && (
-                    <p className="text-white/30 text-xs mt-0.5">
-                      Rechazado {format(parseISO(req.resolved_at), "d MMM, HH:mm", { locale: es })}
-                    </p>
-                  )}
-                </div>
-                <span className={`text-xs px-2 py-1 rounded-full font-bold border ${req.difference > 0 ? 'bg-yellow-400/20 text-yellow-300 border-yellow-400/30' : 'bg-red-500/20 text-red-300 border-red-400/30'}`}>
-                  {req.difference > 0 ? '+' : ''}{cop(req.difference)}
-                </span>
-              </div>
-              <div className="grid grid-cols-3 gap-2 text-xs">
-                {[['Total ventas', req.total_real_sales], ['Efectivo esperado', req.expected_cash], ['Efectivo contado', req.cash_counted]].map(([label, value]) => (
-                  <div key={String(label)} className="bg-white/5 rounded-xl px-3 py-2">
-                    <p className="text-white/40">{label}</p>
-                    <p className="text-white font-bold">{cop(Number(value))}</p>
-                  </div>
-                ))}
-              </div>
-              {req.difference_note && (
-                <div className="bg-white/5 rounded-xl px-3 py-2">
-                  <p className="text-white/40 text-xs mb-1">Nota del trabajador</p>
-                  <p className="text-white text-sm">{req.difference_note}</p>
-                </div>
-              )}
-              {req.admin_note && (
-                <div className="bg-white/5 rounded-xl px-3 py-2">
-                  <p className="text-white/40 text-xs mb-1">Nota del rechazo</p>
-                  <p className="text-white text-sm">{req.admin_note}</p>
-                </div>
-              )}
-              <button onClick={() => restoreDraft(req.id)} disabled={restoringId === req.id}
-                className="w-full py-2.5 rounded-xl text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 hover:bg-emerald-500/30 transition-all disabled:opacity-50">
-                {restoringId === req.id ? 'Restaurando...' : '↩ Restaurar (volver a pendientes)'}
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
       {/* Panel solicitudes de cambio de base */}
       {baseRequests.length > 0 && (
         <div className="space-y-2">
@@ -439,7 +346,7 @@ export default function AdminCierreCajaPage() {
       )}
 
       {/* Filtros */}
-      <div className="card grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="card grid grid-cols-3 gap-3">
         <div><label className="label">Desde</label><input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="input-field" /></div>
         <div><label className="label">Hasta</label><input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="input-field" /></div>
         <div><label className="label">Turno</label>
@@ -447,12 +354,6 @@ export default function AdminCierreCajaPage() {
             <option value="">Todos los turnos</option>
             <option value="morning">☀️ Mañana</option>
             <option value="afternoon">🌙 Tarde</option>
-          </select>
-        </div>
-        <div><label className="label">Trabajador</label>
-          <select value={workerFilter} onChange={e => setWorkerFilter(e.target.value)} className="input-field">
-            <option value="">Todos</option>
-            {workers.map(w => <option key={w.id} value={w.id}>{w.full_name}</option>)}
           </select>
         </div>
       </div>
@@ -500,7 +401,33 @@ export default function AdminCierreCajaPage() {
                       {r.worker_name?.charAt(0)?.toUpperCase() || '?'}
                     </div>
                     <div className="min-w-0">
-                      <p className="text-white font-bold text-sm truncate">{r.worker_name}</p>
+                      {editingWorker?.id === r.id ? (
+                        <select value={editingWorker.workerId}
+                          onClick={e => e.stopPropagation()}
+                          onChange={async e => {
+                            const newWorkerId = e.target.value
+                            setEditingWorker(null)
+                            if (newWorkerId !== r.worker_id) {
+                              await fetch('/api/admin/cash-registers', {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ id: r.id, worker_id: newWorkerId })
+                              })
+                              loadData()
+                            }
+                          }}
+                          onBlur={() => setEditingWorker(null)}
+                          className="bg-white/10 border border-white/20 rounded px-1 py-0.5 text-white text-sm font-bold max-w-full"
+                          autoFocus>
+                          {workers.map(w => <option key={w.id} value={w.id}>{w.full_name}</option>)}
+                        </select>
+                      ) : (
+                        <p className="text-white font-bold text-sm truncate cursor-pointer hover:text-yellow-300 transition-colors"
+                          onClick={e => { e.stopPropagation(); setEditingWorker({ id: r.id, workerId: r.worker_id }) }}
+                          title="Clic para cambiar el trabajador">
+                          {r.worker_name} ✏️
+                        </p>
+                      )}
                       <p className="text-muted text-xs mt-0.5">
                         {editingDate?.id === r.id ? (
                           <input type="date" value={editingDate.date}
@@ -508,7 +435,7 @@ export default function AdminCierreCajaPage() {
                             className="bg-white/10 border border-white/20 rounded px-1 py-0.5 text-white text-xs"
                             onBlur={async () => {
                               if (editingDate.date !== r.register_date) {
-                                await apiFetch('/api/admin/cash-registers', {
+                                await fetch('/api/admin/cash-registers', {
                                   method: 'PATCH',
                                   headers: { 'Content-Type': 'application/json' },
                                   body: JSON.stringify({ id: r.id, register_date: editingDate.date })
