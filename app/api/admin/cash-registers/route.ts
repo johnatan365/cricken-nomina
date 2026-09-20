@@ -1,11 +1,13 @@
 // app/api/admin/cash-registers/route.ts
 import { createAdminClient } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAdmin } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
 // GET — lista de cierres para el admin con filtros opcionales
 export async function GET(req: NextRequest) {
+  const denied = await requireAdmin(req); if (denied) return denied
   try {
     const { searchParams } = new URL(req.url)
     const worker_id  = searchParams.get('worker_id')
@@ -35,6 +37,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const denied = await requireAdmin(req); if (denied) return denied
   try {
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
@@ -54,6 +57,7 @@ export async function DELETE(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const denied = await requireAdmin(req); if (denied) return denied
   const { id, register_date, worker_id } = await req.json()
   const supabase = createAdminClient()
   const updates: Record<string, unknown> = {}
