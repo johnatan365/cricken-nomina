@@ -1,13 +1,11 @@
 // app/api/admin/cash-registers/route.ts
 import { createAdminClient } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
 // GET — lista de cierres para el admin con filtros opcionales
 export async function GET(req: NextRequest) {
-  const denied = await requireAdmin(req); if (denied) return denied
   try {
     const { searchParams } = new URL(req.url)
     const worker_id  = searchParams.get('worker_id')
@@ -16,25 +14,6 @@ export async function GET(req: NextRequest) {
     const shift      = searchParams.get('shift')
 
     const supabase = createAdminClient()
-
-    // Modo: devolver solo los trabajadores que tienen al menos un cierre (para poblar el filtro)
-    if (searchParams.get('workers_with_registers')) {
-      const { data: regs, error: e1 } = await supabase
-        .from('cash_registers')
-        .select('worker_id')
-      if (e1) return NextResponse.json({ error: e1.message }, { status: 400 })
-      const ids = Array.from(new Set((regs || [])
-        .map((r: { worker_id: string }) => r.worker_id)
-        .filter(Boolean)))
-      if (ids.length === 0) return NextResponse.json({ workers: [] })
-      const { data: ws, error: e2 } = await supabase
-        .from('workers')
-        .select('id, full_name')
-        .in('id', ids)
-        .order('full_name')
-      if (e2) return NextResponse.json({ error: e2.message }, { status: 400 })
-      return NextResponse.json({ workers: ws })
-    }
 
     let query = supabase
       .from('cash_registers')
@@ -56,7 +35,6 @@ export async function GET(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const denied = await requireAdmin(req); if (denied) return denied
   try {
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
@@ -76,12 +54,14 @@ export async function DELETE(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const denied = await requireAdmin(req); if (denied) return denied
-  const { id, register_date } = await req.json()
+  const { id, register_date, worker_id } = await req.json()
   const supabase = createAdminClient()
+  const updates: Record<string, unknown> = {}
+  if (register_date !== undefined) updates.register_date = register_date
+  if (worker_id !== undefined) updates.worker_id = worker_id
   const { error } = await supabase
     .from('cash_registers')
-    .update({ register_date })
+    .update(updates)
     .eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ ok: true })
