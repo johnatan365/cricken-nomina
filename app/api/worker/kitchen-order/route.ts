@@ -4,6 +4,11 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
+// Perro coreano = nombre que empieza por una letra seguida de número (A1, A2, B3, D2...)
+function isPerroCoreano(name: string | undefined | null): boolean {
+  return /^\s*[A-Za-z]\s*-?\s*\d/.test(name || '')
+}
+
 function getDeliveryDate(): string {
   // 12am-1:59pm → mismo día
   // 2pm-11:59pm → día siguiente
@@ -126,7 +131,15 @@ export async function POST(req: NextRequest) {
     .filter((i: {qty_requested: number}) => i.qty_requested > 0)
     .map((i: {name: string; qty_requested: number}) => `${i.qty_requested} - ${i.name}`)
     .join('\n')
-  const msg = `*${orderLabel}*\nFecha pedido: ${delivery_date}\n\n${lines}`
+  let msg = `*${orderLabel}*\nFecha pedido: ${delivery_date}\n\n${lines}`
+
+  // Food: total de perros coreanos (productos que empiezan por letra+número: A1, B2, D3...)
+  if (body_data.order_type === 'food') {
+    const totalPerros = items
+      .filter((i: {name: string; qty_requested: number}) => i.qty_requested > 0 && isPerroCoreano(i.name))
+      .reduce((s: number, i: {qty_requested: number}) => s + i.qty_requested, 0)
+    msg += `\n\n🌭 Total perros coreanos: ${totalPerros}`
+  }
 
   // Food Tracker → copiar al portapapeles (grupo WhatsApp)
   // Otros → abrir wa.me Y copiar al portapapeles
