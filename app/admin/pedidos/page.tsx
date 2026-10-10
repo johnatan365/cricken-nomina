@@ -11,6 +11,12 @@ type Order = { id: string; delivery_date: string; status: string; whatsapp_sent:
 
 const cop = (v: number) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(v || 0)
 
+// Perro coreano = nombre que empieza por una letra seguida de número (A1, A2, B3, D2...)
+const isPerroCoreano = (name: string | undefined | null) => /^\s*[A-Za-z]\s*-?\s*\d/.test(name || '')
+// Mismo cálculo que el mensaje de WhatsApp: suma de cantidades pedidas
+const totalPerros = (items: OrderItem[]) =>
+  items.filter(i => i.qty_requested > 0 && isPerroCoreano(i.product?.name)).reduce((s, i) => s + i.qty_requested, 0)
+
 export default function AdminPedidosPage() {
   const [orders, setOrders]       = useState<Order[]>([])
   const [products, setProducts]   = useState<Product[]>([])
@@ -319,8 +325,13 @@ export default function AdminPedidosPage() {
           {loading ? <div className="card text-center py-10"><p className="text-white/40">Cargando...</p></div>
           : orders.length === 0 ? <div className="card text-center py-10"><p className="text-3xl mb-2">📋</p><p className="text-white/50">No hay pedidos</p></div>
           : orders.map(order => {
-            const groups = groupBySupplier(sortItems(order.items || []))
+            const isFood = mainTab === 'food'
+            // Food: una sola lista en el mismo orden del WhatsApp (sin separar por proveedor)
+            const groups = isFood
+              ? { 'Productos': sortItems(order.items || []) }
+              : groupBySupplier(sortItems(order.items || []))
             const total  = orderTotal(order.items || [], order.status)
+            const perros = isFood ? totalPerros(order.items || []) : 0
             return (
               <div key={order.id} className="card">
                 <div className="flex items-center justify-between cursor-pointer"
@@ -348,6 +359,12 @@ export default function AdminPedidosPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
+                    {isFood && (
+                      <div className="text-right">
+                        <p className="text-white/40 text-xs">🌭 Perros</p>
+                        <p className="text-orange-300 font-bold">{perros}</p>
+                      </div>
+                    )}
                     <div className="text-right">
                       <p className="text-white/40 text-xs">Total</p>
                       <p className="text-yellow-400 font-bold">{total !== null ? cop(total) : '—'}</p>
@@ -438,6 +455,12 @@ export default function AdminPedidosPage() {
                       )
                     })}
 
+                    {isFood && (
+                      <div className="flex justify-between font-bold pt-1 border-t border-white/15 mt-1">
+                        <span className="text-white">🌭 Total perros coreanos</span>
+                        <span className="text-lg text-orange-300">{perros}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between font-bold pt-1 border-t border-white/15 mt-1">
                       <span className="text-white">Total pedido</span>
                       <span className={`text-lg ${total !== null ? 'text-yellow-400' : 'text-white/30'}`}>
