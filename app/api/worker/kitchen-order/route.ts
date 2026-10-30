@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
   // Buscar pedido pending sin confirmar (cualquier fecha)
   const { data: pendingOrder, error: orderError } = await supabase
     .from('kitchen_orders')
-    .select('id, delivery_date, status, worker_id, delivered_by, order_type')
+    .select('id, delivery_date, status, worker_id, delivered_by, order_type, ordered_at')
     .eq('status', 'pending')
     .eq('order_type', orderType)
     .order('delivery_date', { ascending: false })
@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
   let orderType = body_data.order_type || 'kitchen'
   const { data: order, error } = await supabase
     .from('kitchen_orders')
-    .insert({ worker_id, delivery_date, status: 'pending', order_type: orderType })
+    .insert({ worker_id, delivery_date, status: 'pending', order_type: orderType, ordered_at: new Date().toISOString() })
     .select().single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
@@ -166,7 +166,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   // Si es food tracker y hay confirm_date, actualizar la delivery_date
-  const orderUpdate: Record<string, unknown> = { status: 'delivered' }
+  const orderUpdate: Record<string, unknown> = { status: 'delivered', confirmed_at: new Date().toISOString() }
   if (delivered_by) orderUpdate.delivered_by = delivered_by
   if (confirm_date) orderUpdate.delivery_date = confirm_date
   await supabase.from('kitchen_orders').update(orderUpdate).eq('id', order_id)

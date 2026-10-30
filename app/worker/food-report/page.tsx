@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase, apiFetch } from '@/lib/supabase'
 import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { fmtOrderDateTime } from '@/lib/orderDates'
 
 const cop = (v: number) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(v || 0)
 
@@ -138,6 +139,12 @@ export default function FoodReportPage() {
             <div>
               <p className="text-white font-bold text-sm">{format(parseISO(o.delivery_date), "d 'de' MMMM", { locale: es })}</p>
               <p className="text-white/40 text-xs">{o.items?.length || 0} productos</p>
+              {(o.ordered_at || o.confirmed_at) && (
+                <p className="text-white/50 text-[11px] leading-snug mt-0.5">
+                  📤 {fmtOrderDateTime(o.ordered_at) || 'Sin registro'}<br />
+                  ✅ {fmtOrderDateTime(o.confirmed_at) || 'Sin registro'}
+                </p>
+              )}
             </div>
             <div className="text-right">
               <p className="text-yellow-400 font-bold">{cop(o.total)}</p>

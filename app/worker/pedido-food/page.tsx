@@ -3,10 +3,11 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase, apiFetch } from '@/lib/supabase'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { fmtOrderDateTime } from '@/lib/orderDates'
 
 type Product = { id: string; name: string; price: number; sort_order: number; supplier: string }
 type OrderItem = { id: string; product_id: string; qty_requested: number; qty_delivered: number | null; observation: string | null; product: Product }
-type Order = { id: string; delivery_date: string; status: string; items: OrderItem[]; worker_name?: string }
+type Order = { id: string; delivery_date: string; status: string; items: OrderItem[]; worker_name?: string; ordered_at?: string | null }
 
 const DRAFT_KEY = 'pedido_draft_food'
 
@@ -223,6 +224,7 @@ export default function PedidoFoodPage() {
             <div className="card text-center py-8 space-y-3">
               <p className="text-4xl">✅</p>
               <p className="text-white font-bold">Pedido enviado</p>
+              {fmtOrderDateTime(order.ordered_at) && <p className="text-white/70 text-sm">📤 {fmtOrderDateTime(order.ordered_at)}</p>}
               <p className="text-white/50 text-sm">Confirma la entrega cuando llegue</p>
               <button onClick={() => setTab('delivery')} className="btn-primary">Confirmar entrega →</button>
             </div>
@@ -271,6 +273,8 @@ export default function PedidoFoodPage() {
           ) : (
             <div className="space-y-2">
               <div className="card">
+                <p className="text-white/40 text-[10px] uppercase tracking-wider">📤 Pedido hecho</p>
+                <p className="text-white font-bold text-sm mb-3">{fmtOrderDateTime(order.ordered_at) || 'Sin registro'}</p>
                 <label className="label">¿En qué fecha te lo entregaron?</label>
                 <input type="date" value={confirmDate} onChange={e => setConfirmDate(e.target.value)}
                   className="input-field" />
