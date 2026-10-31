@@ -4,6 +4,12 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
+// Hora en que se hizo el pedido = la del primer producto guardado (se guardan al tocar "Enviar pedido")
+function firstCreatedAt(items: { created_at?: string | null }[]): string | null {
+  const t = items.map(i => i.created_at).filter(Boolean).sort() as string[]
+  return t[0] || null
+}
+
 // Perro coreano = nombre que empieza por una letra seguida de número (A1, A2, B3, D2...)
 function isPerroCoreano(name: string | undefined | null): boolean {
   return /^\s*[A-Za-z]\s*-?\s*\d/.test(name || '')
@@ -44,7 +50,7 @@ export async function GET(req: NextRequest) {
   // Buscar pedido pending sin confirmar (cualquier fecha)
   const { data: pendingOrder, error: orderError } = await supabase
     .from('kitchen_orders')
-    .select('id, delivery_date, status, worker_id, delivered_by, order_type, ordered_at')
+    .select('id, delivery_date, status, worker_id, delivered_by, order_type')
     .eq('status', 'pending')
     .eq('order_type', orderType)
     .order('delivery_date', { ascending: false })
@@ -56,7 +62,7 @@ export async function GET(req: NextRequest) {
   if (pendingOrder?.id) {
     const { data: items } = await supabase
       .from('kitchen_order_items')
-      .select('id, product_id, qty_requested, qty_delivered, observation, price_override, product:kitchen_products(id, name, price, supplier)')
+      .select('id, product_id, qty_requested, qty_delivered, observation, price_override, created_at, product:kitchen_products(id, name, price, supplier)')
       .eq('order_id', pendingOrder.id)
     orderItems = items || []
   }
@@ -78,7 +84,7 @@ export async function GET(req: NextRequest) {
     workerName = w?.full_name || ''
   }
 
-  const orderWithName = pendingOrder ? { ...pendingOrder, items: orderItems, worker_name: workerName } : null
+  const orderWithName = pendingOrder ? { ...pendingOrder, items: orderItems, worker_name: workerName, ordered_at: firstCreatedAt(orderItems) } : null
   return NextResponse.json({ order: orderWithName, products, deliveryDate: effectiveDate })
 }
 
@@ -108,7 +114,7 @@ export async function POST(req: NextRequest) {
   let orderType = body_data.order_type || 'kitchen'
   const { data: order, error } = await supabase
     .from('kitchen_orders')
-    .insert({ worker_id, delivery_date, status: 'pending', order_type: orderType, ordered_at: new Date().toISOString() })
+    .insert({ worker_id, delivery_date, status: 'pending', order_type: orderType })
     .select().single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
@@ -166,7 +172,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   // Si es food tracker y hay confirm_date, actualizar la delivery_date
-  const orderUpdate: Record<string, unknown> = { status: 'delivered', confirmed_at: new Date().toISOString() }
+  const orderUpdate: Record<string, unknown> = { status: 'delivered' }
   if (delivered_by) orderUpdate.delivered_by = delivered_by
   if (confirm_date) orderUpdate.delivery_date = confirm_date
   await supabase.from('kitchen_orders').update(orderUpdate).eq('id', order_id)

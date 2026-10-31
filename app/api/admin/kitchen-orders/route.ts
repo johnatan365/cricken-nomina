@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   // Query sin join a workers para evitar ambigüedad de FK
   let q = supabase
     .from('kitchen_orders')
-    .select('id, delivery_date, status, whatsapp_sent, worker_id, delivered_by, order_type, ordered_at, confirmed_at, items:kitchen_order_items(id, product_id, qty_requested, qty_delivered, observation, price_override, product:kitchen_products(id, name, price, supplier, sort_order))')
+    .select('id, delivery_date, status, whatsapp_sent, worker_id, delivered_by, order_type, items:kitchen_order_items(id, product_id, qty_requested, qty_delivered, observation, price_override, created_at, product:kitchen_products(id, name, price, supplier, sort_order))')
     .eq('order_type', order_type)
     .order('delivery_date', { ascending: false })
 
@@ -42,6 +42,8 @@ export async function GET(req: NextRequest) {
 
   const enrichedOrders = orders.map(o => ({
     ...o,
+    // Hora en que se hizo el pedido = la del primer producto guardado
+    ordered_at: ((o.items || []) as { created_at?: string | null }[]).map(i => i.created_at).filter(Boolean).sort()[0] || null,
     worker: { full_name: workerMap[o.worker_id] || 'Desconocido' },
     delivered_by_worker: o.delivered_by ? { full_name: workerMap[o.delivered_by] || 'Desconocido' } : null,
   }))

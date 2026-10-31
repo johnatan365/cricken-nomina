@@ -85,7 +85,7 @@ export function exportAdminReport(logs: TimeLog[], workers: Worker[]) {
 
 // ── Tipos para pedidos ──
 type OrderItemExport = { product_id?: string; product: { name: string; price: number; supplier: string } | null; qty_requested?: number | null; qty_delivered: number | null; price_override: number | null }
-type OrderExport = { id: string; delivery_date: string; status: string; worker: { full_name: string } | null; items: OrderItemExport[]; ordered_at?: string | null; confirmed_at?: string | null }
+type OrderExport = { id: string; delivery_date: string; status: string; worker: { full_name: string } | null; items: OrderItemExport[]; ordered_at?: string | null }
 
 function orderTotalExport(items: OrderItemExport[]) {
   return items.reduce((s, i) => {
@@ -235,7 +235,7 @@ export function exportPedidosReport(
   function buildSheet(orders: OrderExport[], withDates = false) {
     const rows: (string | number)[][] = [
       withDates
-        ? ['Fecha entrega', 'Pedido hecho', 'Entrega confirmada', 'Trabajador', 'Estado', 'Total pedido']
+        ? ['Fecha entrega', 'Pedido hecho', 'Trabajador', 'Estado', 'Total pedido']
         : ['Fecha entrega', 'Trabajador', 'Estado', 'Total pedido'],
     ]
     let subtotal = 0
@@ -245,16 +245,16 @@ export function exportPedidosReport(
       if (total !== null) subtotal += total
       rows.push([
         o.delivery_date,
-        ...(withDates ? [fmtOrderDateTimeExcel(o.ordered_at), fmtOrderDateTimeExcel(o.confirmed_at)] : []),
+        ...(withDates ? [fmtOrderDateTimeExcel(o.ordered_at)] : []),
         o.worker?.full_name ?? '—',
         isDelivered ? 'Entregado' : 'Pendiente',
         total !== null ? total : '—',
       ])
     }
-    rows.push(withDates ? ['TOTAL', '', '', '', '', subtotal] : ['TOTAL', '', '', subtotal])
+    rows.push(withDates ? ['TOTAL', '', '', '', subtotal] : ['TOTAL', '', '', subtotal])
     const ws = XLSX.utils.aoa_to_sheet(rows)
     ws['!cols'] = withDates
-      ? [{ wch: 16 }, { wch: 18 }, { wch: 18 }, { wch: 22 }, { wch: 14 }, { wch: 18 }]
+      ? [{ wch: 16 }, { wch: 18 }, { wch: 22 }, { wch: 14 }, { wch: 18 }]
       : [{ wch: 16 }, { wch: 22 }, { wch: 14 }, { wch: 18 }]
     return { ws, subtotal }
   }

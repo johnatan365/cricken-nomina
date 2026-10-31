@@ -28,10 +28,18 @@ function bogotaDay(iso: string): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(iso))
 }
 
-// "El mismo día" / "1 día después" / "3 días después"
-export function confirmLag(orderedAt: string | null | undefined, confirmedAt: string | null | undefined): string | null {
-  if (!orderedAt || !confirmedAt) return null
-  const a = Date.parse(bogotaDay(orderedAt)), b = Date.parse(bogotaDay(confirmedAt))
+// Fecha de entrega confirmada (YYYY-MM-DD, sin hora): "mar 27 oct"
+export function fmtDeliveryDay(day: string | null | undefined): string | null {
+  if (!day) return null
+  const d = new Date(day + 'T12:00:00Z')
+  if (isNaN(d.getTime())) return null
+  return new Intl.DateTimeFormat('es-CO', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' }).format(d).replace(/[.,]/g, '').replace(/ de /g, ' ')
+}
+
+// "El mismo día" / "1 día después" / "3 días después" (deliveryDay = YYYY-MM-DD)
+export function confirmLag(orderedAt: string | null | undefined, deliveryDay: string | null | undefined): string | null {
+  if (!orderedAt || !deliveryDay) return null
+  const a = Date.parse(bogotaDay(orderedAt)), b = Date.parse(deliveryDay)
   const days = Math.round((b - a) / 86400000)
   if (isNaN(days) || days < 0) return null
   if (days === 0) return 'El mismo día'

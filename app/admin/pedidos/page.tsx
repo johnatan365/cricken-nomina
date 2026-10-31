@@ -4,11 +4,11 @@ import { apiFetch } from '@/lib/supabase'
 import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { exportPedidosReport } from '@/lib/excel'
-import { fmtOrderDateTime, confirmLag } from '@/lib/orderDates'
+import { fmtOrderDateTime, fmtDeliveryDay, confirmLag } from '@/lib/orderDates'
 
 type Product = { id: string; name: string; price: number; supplier: string; is_active: boolean; sort_order: number }
 type OrderItem = { id: string; product_id: string; qty_requested: number; qty_delivered: number | null; observation: string | null; price_override: number | null; product: Product }
-type Order = { id: string; delivery_date: string; status: string; whatsapp_sent: boolean; worker: { full_name: string }; delivered_by_worker: { full_name: string } | null; items: OrderItem[]; ordered_at?: string | null; confirmed_at?: string | null }
+type Order = { id: string; delivery_date: string; status: string; whatsapp_sent: boolean; worker: { full_name: string }; delivered_by_worker: { full_name: string } | null; items: OrderItem[]; ordered_at?: string | null }
 
 const cop = (v: number) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(v || 0)
 
@@ -381,10 +381,9 @@ export default function AdminPedidosPage() {
                 {/* Food: fecha y hora del pedido y de la confirmación de entrega */}
                 {isFood && (() => {
                   const pedido = fmtOrderDateTime(order.ordered_at)
-                  const confirmado = fmtOrderDateTime(order.confirmed_at)
-                  const lag = confirmLag(order.ordered_at, order.confirmed_at)
-                  const oldDate = order.status === 'delivered' && !confirmado
-                    ? format(parseISO(order.delivery_date), "EEE d MMM", { locale: es }) : null
+                  const entregado = order.status === 'delivered'
+                  const confirmado = entregado ? fmtDeliveryDay(order.delivery_date) : null
+                  const lag = entregado ? confirmLag(order.ordered_at, order.delivery_date) : null
                   return (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
                       <div className="bg-white/5 rounded-xl px-3 py-2">
@@ -393,8 +392,8 @@ export default function AdminPedidosPage() {
                       </div>
                       <div className="bg-white/5 rounded-xl px-3 py-2">
                         <p className="text-white/40 text-[10px] uppercase tracking-wider">✅ Entrega confirmada</p>
-                        <p className={`text-sm font-bold ${confirmado || oldDate ? 'text-white' : 'text-white/40'}`}>
-                          {confirmado || oldDate || 'Todavía no'}
+                        <p className={`text-sm font-bold ${confirmado ? 'text-white' : 'text-white/40'}`}>
+                          {confirmado || 'Todavía no'}
                         </p>
                         {lag && (
                           <span className={`inline-block mt-1 text-[11px] font-bold px-2 py-0.5 rounded-full ${lag === 'El mismo día' ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-400/15 text-amber-300'}`}>{lag}</span>

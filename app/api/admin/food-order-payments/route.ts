@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   // Obtener pedidos food entregados con su estado de pago
   let q = supabase
     .from('kitchen_orders')
-    .select('id, delivery_date, status, ordered_at, confirmed_at, items:kitchen_order_items(id, qty_delivered, price_override, product:kitchen_products(name, price, supplier))')
+    .select('id, delivery_date, status, items:kitchen_order_items(id, qty_delivered, created_at, price_override, product:kitchen_products(name, price, supplier))')
     .eq('order_type', 'food')
     .eq('status', 'delivered')
     .order('delivery_date', { ascending: false })
@@ -41,7 +41,8 @@ export async function GET(req: NextRequest) {
   const ordersWithTotal = (orders || []).map(o => {
     const total = (o.items || []).reduce((s: number, i: any) =>
       s + (i.qty_delivered ?? 0) * (i.price_override ?? i.product?.price ?? 0), 0)
-    return { ...o, total, isPaid: paidOrderIds.has(o.id), payment: payments.find(p => p.order_id === o.id) || null }
+    const ordered_at = ((o.items || []) as { created_at?: string | null }[]).map(i => i.created_at).filter(Boolean).sort()[0] || null
+    return { ...o, ordered_at, total, isPaid: paidOrderIds.has(o.id), payment: payments.find(p => p.order_id === o.id) || null }
   })
 
   return NextResponse.json({ orders: ordersWithTotal, payments })
