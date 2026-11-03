@@ -25,11 +25,58 @@ export async function GET(req: NextRequest) {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
-    const last = data?.[0]
+    // Base por caja: cada turno tiene su propia caja física (morning = Caja Tarde,
+    // afternoon = Caja Noche). La base sale del último cierre de ESA caja, lo haya
+    // hecho quien lo haya hecho — así quien reemplaza recibe la base que dejó el otro.
+    const date = searchParams.get('date')
+    const cajas: Record<string, {
+      base: number; by: string | null; date: string | null
+      pending: boolean; pendingBaseRequest: boolean; closedBy: string | null
+    }> = {}
+    const names: Record<string, string> = {}
 
-    // Base sugerida — no pre-cargar si hay solicitud de cambio pendiente
-    const hasPendingBaseRequest = last?.base_change_status === 'pending'
-    const suggestedBase = (!hasPendingBaseRequest && last?.next_base) ? last.next_base : 0
+    for (const s of ['morning', 'afternoon'] as const) {
+      const { data: lastReg } = await supabase
+        .from('cash_registers')
+        .select('worker_id, next_base, register_date, submitted_at, base_change_status')
+        .eq('shift', s)
+        .order('register_date', { ascending: false })
+        .order('submitted_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      // Un cierre con descuadre queda como borrador hasta que el admin lo aprueba,
+      // pero la plata ya está en la caja: si es más nuevo, su base es la que cuenta.
+      const { data: pendingDraft } = await supabase
+        .from('cash_register_drafts')
+        .select('worker_id, next_base, register_date, created_at')
+        .eq('shift', s)
+        .eq('status', 'pending_approval')
+        .order('register_date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      const draftIsNewer = !!pendingDraft && (!lastReg ||
+        pendingDraft.register_date > lastReg.register_date ||
+        (pendingDraft.register_date === lastReg.register_date && pendingDraft.created_at > lastReg.submitted_at))
+      const src = draftIsNewer ? pendingDraft : lastReg
+
+      for (const id of [src?.worker_id].filter(Boolean) as string[]) {
+        if (names[id]) continue
+        const { data: w } = await supabase.from('workers').select('full_name').eq('id', id).maybeSingle()
+        names[id] = w?.full_name?.split(' ')[0] || 'Otro'
+      }
+
+      cajas[s] = {
+        base:               src?.next_base || 0,
+        by:                 src ? names[src.worker_id] : null,
+        date:               src?.register_date || null,
+        pending:            draftIsNewer,
+        pendingBaseRequest: !draftIsNewer && lastReg?.base_change_status === 'pending',
+        closedBy:           date && src?.register_date === date ? names[src.worker_id] : null,
+      }
+    }
 
     // Verificar borrador pendiente de aprobación (descuadre)
     const { data: draft } = await supabase
@@ -43,8 +90,8 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       registers: data,
-      suggestedBase,
-      hasPendingBaseRequest,
+      cajas,
+      lastShift: data?.[0]?.shift || null,
       hasPendingDifference: !!draft,
       pendingDraft: draft || null,
     })
@@ -90,17 +137,29 @@ export async function POST(req: NextRequest) {
         blocked: true,
       }, { status: 403 })
 
-    // Verificar duplicado
+    // Verificar duplicado — cada caja se cierra una sola vez al día, la cierre quien la cierre
+    const day = register_date || new Date().toISOString().split('T')[0]
+    const cajaName = shift === 'morning' ? 'Caja Tarde' : 'Caja Noche'
     const { data: existing } = await supabase
       .from('cash_registers')
       .select('id')
-      .eq('worker_id', worker_id)
       .eq('shift', shift)
-      .eq('register_date', register_date || new Date().toISOString().split('T')[0])
+      .eq('register_date', day)
+      .limit(1)
       .maybeSingle()
 
-    if (existing)
-      return NextResponse.json({ error: 'Ya existe un cierre para este turno hoy' }, { status: 409 })
+    const { data: otherDraft } = await supabase
+      .from('cash_register_drafts')
+      .select('id')
+      .eq('shift', shift)
+      .eq('register_date', day)
+      .eq('status', 'pending_approval')
+      .neq('worker_id', worker_id)
+      .limit(1)
+      .maybeSingle()
+
+    if (existing || otherDraft)
+      return NextResponse.json({ error: `La ${cajaName} ya se cerró hoy` }, { status: 409 })
 
     const n = (v: unknown) => parseFloat(String(v)) || 0
 

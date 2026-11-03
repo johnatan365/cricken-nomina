@@ -29,7 +29,14 @@ type CashRegister  = {
 
 const n = (v: string | number) => parseFloat(String(v).replace(/\./g, '').replace(',', '.')) || 0
 const cop = (v: number) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v)
-const SHIFT_LABELS: Record<Shift, string> = { morning: '☀️ Turno Mañana', afternoon: '🌙 Turno Tarde' }
+// Cada turno tiene su propia caja física: morning = Caja Tarde, afternoon = Caja Noche
+const SHIFT_LABELS: Record<Shift, string> = { morning: '☀️ Caja Tarde', afternoon: '🌙 Caja Noche' }
+const CAJA_NAMES: Record<Shift, string>   = { morning: 'Caja Tarde', afternoon: 'Caja Noche' }
+type CajaInfo = {
+  base: number; by: string | null; date: string | null
+  pending: boolean; pendingBaseRequest: boolean; closedBy: string | null
+}
+const baseLocked = (c?: CajaInfo) => !!c && c.base > 0 && !c.pendingBaseRequest
 const DRAFT_KEY = 'cricken_cierre_draft_v3'
 
 function saveDraft(data: object) {
@@ -76,7 +83,7 @@ const inp = "w-full bg-white/10 border border-white/15 rounded-lg px-2 py-1.5 te
 export default function CierreCajaPage() {
   const [worker, setWorker]               = useState<{ id: string; full_name: string } | null>(null)
   const [registers, setRegisters]         = useState<CashRegister[]>([])
-  const [suggestedBase, setSuggestedBase] = useState(0)
+  const [cajas, setCajas]                 = useState<Record<Shift, CajaInfo> | null>(null)
   const [loading, setLoading]             = useState(true)
   const [dataLoaded, setDataLoaded]       = useState(false)
   const [saving, setSaving]               = useState(false)
@@ -110,7 +117,6 @@ export default function CierreCajaPage() {
   const [supplierPayments, setSupplierPayments] = useState<SupplierItem[]>([])
   const [cashToOwner, setCashToOwner]           = useState('')
   const [differenceNote, setDifferenceNote]     = useState('')
-  const [hasPendingBase, setHasPendingBase]     = useState(false)    // si el último tiene solicitud pendiente
   const [hasPendingDiff, setHasPendingDiff]     = useState(false)    // si hay descuadre pendiente de aprobación
   const [pendingDraft, setPendingDraft]         = useState<{id: string; difference: number; status: string} | null>(null)
 
@@ -182,8 +188,8 @@ export default function CierreCajaPage() {
     )
     if (!hasReal) { clearDraft(); return }
     if (d.shift)              setShift(d.shift)
-    // openingFund solo si primer turno (no bloqueado)
-    if (d.openingFund && !baseIsLocked) setOpeningFund(d.openingFund)
+    // openingFund solo si la caja no tiene base bloqueada
+    if (d.openingFund && !baseLocked(cajas?.[(d.shift as Shift) || shift])) setOpeningFund(d.openingFund)
     if (d.puveTotalReported)  setPuveTotalReported(d.puveTotalReported)
     if (d.billCounts)         setBillCounts(d.billCounts)
     if (d.puveTransfers)      setPuveTransfers(d.puveTransfers)
@@ -194,6 +200,14 @@ export default function CierreCajaPage() {
     if (d.differenceNote)     setDifferenceNote(d.differenceNote)
     setDraftRestored(true)
   }, [dataLoaded])
+
+  // La base recibida sale de la caja escogida
+  useEffect(() => {
+    const c = cajas?.[shift]
+    if (!c) return
+    if (baseLocked(c)) { setOpeningFund(String(c.base)); setBaseIsLocked(true) }
+    else { if (baseIsLocked) setOpeningFund(''); setBaseIsLocked(false) }
+  }, [shift, cajas])
 
   // Autosave — solo después de que los datos se restauraron
   useEffect(() => {
@@ -207,10 +221,9 @@ export default function CierreCajaPage() {
     const { data: w } = await supabase.from('workers').select('id, full_name').eq('auth_user_id', user.id).single()
     if (!w) return
     setWorker(w)
-    const res  = await apiFetch('/api/worker/cash-register?worker_id=' + w.id)
+    const res  = await apiFetch(`/api/worker/cash-register?worker_id=${w.id}&date=${openedDate}`)
     const json = await res.json()
     setRegisters(json.registers || [])
-    setHasPendingBase(json.hasPendingBaseRequest || false)
     setHasPendingDiff(json.hasPendingDifference || false)
     // Verificar estado del borrador
     const draftRes  = await apiFetch('/api/worker/cash-register-draft?worker_id=' + w.id)
@@ -234,13 +247,14 @@ export default function CierreCajaPage() {
       setPendingDraft(null)
       setHasPendingDiff(false)
     }
-    // Base SIEMPRE del servidor — tiene prioridad absoluta
-    if (json.suggestedBase > 0) {
-      setSuggestedBase(json.suggestedBase)
-      setOpeningFund(String(json.suggestedBase))
-      setBaseIsLocked(true)   // siempre bloqueada si hay cierre anterior
-    } else {
-      setBaseIsLocked(false)  // primer turno — puede ingresar manualmente
+    // Base SIEMPRE del servidor, por caja — el efecto de arriba la aplica a la caja escogida.
+    // Preseleccionar la última caja que usó esta persona, si no se ha cerrado hoy.
+    const c: Record<Shift, CajaInfo> | null = json.cajas || null
+    setCajas(c)
+    if (c) {
+      const pref: Shift = json.lastShift === 'afternoon' ? 'afternoon' : 'morning'
+      const other: Shift = pref === 'morning' ? 'afternoon' : 'morning'
+      setShift(!c[pref].closedBy ? pref : !c[other].closedBy ? other : pref)
     }
     setLoading(false)
     setDataLoaded(true)
@@ -267,7 +281,7 @@ export default function CierreCajaPage() {
   function resetForm() {
     clearDraft()  // limpiar localStorage primero
     setDataLoaded(false)  // resetear para que el useEffect del borrador no restaure nada
-    setShift('morning'); setPuveTotalReported('')
+    setPuveTotalReported('')
     setBillCounts(BILL_DENOMINATIONS.map(d => ({ denomination: d, quantity: '' })))
     setPuveTransfers([{ amount: '' }])
     setDidiOrders([]); setWhatsappOrders([]); setSupplierPayments([])
@@ -320,6 +334,7 @@ export default function CierreCajaPage() {
       showMsg('error', 'Tienes un cierre con descuadre pendiente de aprobación del admin.')
       return
     }
+    if (cajas?.[shift]?.closedBy) { showMsg('error', `La ${CAJA_NAMES[shift]} ya se cerró hoy`); return }
     if (cashCounted === 0)  { showMsg('error', 'Registra el conteo de billetes'); return }
     if (!puveTotalReported) { showMsg('error', 'Ingresa el Total ventas Puve'); return }
     if (cashToOwner === '') { showMsg('error', 'Ingresa la base que dejas en caja'); return }
@@ -521,16 +536,47 @@ export default function CierreCajaPage() {
             </div>
           )}
 
-          {/* Barra superior: turno + base + total puve */}
-          <div className="flex flex-wrap items-center gap-3 bg-white/8 border border-white/10 rounded-2xl px-4 py-3">
-            <div className="flex gap-2">
-              {(['morning', 'afternoon'] as const).map(s => (
-                <button key={s} onClick={() => setShift(s)}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all ${shift === s ? 'bg-yellow-400 text-purple-900 border-yellow-400' : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10'}`}>
-                  {SHIFT_LABELS[s]}
-                </button>
-              ))}
+          {/* Selector de caja — cada caja trae la base que dejó quien la cerró de último */}
+          <div className="space-y-2">
+            <p className="text-white/60 text-xs font-semibold">¿Qué caja vas a cerrar?</p>
+            <div className="grid grid-cols-2 gap-2 max-w-md">
+              {(['morning', 'afternoon'] as const).map(s => {
+                const c = cajas?.[s]
+                const selected = shift === s
+                if (c?.closedBy) return (
+                  <div key={s} className="rounded-2xl border border-white/5 bg-white/[0.02] p-3 opacity-50 cursor-not-allowed">
+                    <p className="text-white/70 font-bold text-sm">{CAJA_NAMES[s]}</p>
+                    <p className="text-white/50 text-[11px] mt-2">✅ Ya la cerró <b>{c.closedBy}</b> hoy</p>
+                  </div>
+                )
+                return (
+                  <button key={s} onClick={() => setShift(s)}
+                    className={`text-left rounded-2xl p-3 transition-all ${selected ? 'border-2 border-yellow-400 bg-yellow-400/10' : 'border border-white/10 bg-white/5 hover:bg-white/10'}`}>
+                    <p className="text-white font-bold text-sm">{CAJA_NAMES[s]}</p>
+                    {c && c.base > 0 ? (
+                      <>
+                        <p className={`font-bold text-lg leading-tight mt-1 ${selected ? 'text-emerald-400' : 'text-white/60'}`}>{cop(c.base)}</p>
+                        {c.by && c.date && (
+                          <p className="text-white/50 text-[11px] mt-1">La dejó <b className="text-white/80">{c.by}</b> · {format(parseISO(c.date), "EEE d MMM", { locale: es })}</p>
+                        )}
+                        {c.pending && <p className="text-amber-300 text-[11px] mt-1">⏳ Pendiente del admin</p>}
+                      </>
+                    ) : (
+                      <p className="text-white/40 text-[11px] mt-1">Sin base registrada</p>
+                    )}
+                  </button>
+                )
+              })}
             </div>
+            {cajas?.[shift]?.pending && (
+              <div className="rounded-2xl border border-amber-300/30 bg-amber-300/10 px-3 py-2 text-xs text-amber-100 max-w-md">
+                El cierre de {cajas[shift].by} tuvo descuadre y el admin no lo ha revisado. Igual te mostramos la base que dejó en la caja, porque es la plata que está ahí.
+              </div>
+            )}
+          </div>
+
+          {/* Barra superior: base + total puve */}
+          <div className="flex flex-wrap items-center gap-3 bg-white/8 border border-white/10 rounded-2xl px-4 py-3">
             <div className="flex items-center gap-2">
               <label className="text-white/50 text-xs font-semibold whitespace-nowrap">Base recibida:</label>
               {baseIsLocked ? (
@@ -538,13 +584,13 @@ export default function CierreCajaPage() {
                   <div className="w-32 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-emerald-400 text-sm font-bold cursor-not-allowed">
                     {cop(n(openingFund))}
                   </div>
-                  <span className="text-emerald-400/60 text-xs">🔒 del cierre anterior</span>
+                  <span className="text-emerald-400/60 text-xs">🔒 la dejó {cajas?.[shift]?.by || 'el cierre anterior'}</span>
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
                   <input type="number" min="0" value={openingFund} onChange={e => setOpeningFund(e.target.value)}
                     className="w-32 bg-white/10 border border-white/15 rounded-lg px-3 py-1.5 text-white text-sm font-bold focus:outline-none focus:border-yellow-400/60 transition-all" placeholder="0" />
-                  <span className="text-white/30 text-xs">Primer turno</span>
+                  <span className="text-white/30 text-xs">{cajas?.[shift]?.pendingBaseRequest ? 'Cambio de base pendiente del admin' : 'Sin base registrada'}</span>
                 </div>
               )}
             </div>

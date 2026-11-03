@@ -68,7 +68,7 @@ type BaseChangeRequest = {
 const cop = (v: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(v || 0)
 
-const SHIFT_LABELS = { morning: '☀️ Mañana', afternoon: '🌙 Tarde' }
+const SHIFT_LABELS = { morning: '☀️ Caja Tarde', afternoon: '🌙 Caja Noche' }
 
 export default function AdminCierreCajaPage() {
   const [registers, setRegisters]     = useState<CashRegister[]>([])
@@ -350,11 +350,11 @@ export default function AdminCierreCajaPage() {
       <div className="card grid grid-cols-3 gap-3">
         <div><label className="label">Desde</label><input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="input-field" /></div>
         <div><label className="label">Hasta</label><input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="input-field" /></div>
-        <div><label className="label">Turno</label>
+        <div><label className="label">Caja</label>
           <select value={shiftFilter} onChange={e => setShiftFilter(e.target.value)} className="input-field">
-            <option value="">Todos los turnos</option>
-            <option value="morning">☀️ Mañana</option>
-            <option value="afternoon">🌙 Tarde</option>
+            <option value="">Todas las cajas</option>
+            <option value="morning">☀️ Caja Tarde</option>
+            <option value="afternoon">🌙 Caja Noche</option>
           </select>
         </div>
       </div>
