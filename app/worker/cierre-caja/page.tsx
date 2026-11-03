@@ -30,7 +30,7 @@ type CashRegister  = {
 const n = (v: string | number) => parseFloat(String(v).replace(/\./g, '').replace(',', '.')) || 0
 const cop = (v: number) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v)
 // Cada turno tiene su propia caja física: morning = Caja Tarde, afternoon = Caja Noche
-const SHIFT_LABELS: Record<Shift, string> = { morning: '☀️ Caja Tarde', afternoon: '🌙 Caja Noche' }
+const SHIFT_LABELS: Record<Shift, string> = { morning: '🌇 Caja Tarde', afternoon: '🌙 Caja Noche' }
 const CAJA_NAMES: Record<Shift, string>   = { morning: 'Caja Tarde', afternoon: 'Caja Noche' }
 type CajaInfo = {
   base: number; by: string | null; date: string | null

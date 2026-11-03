@@ -68,7 +68,7 @@ type BaseChangeRequest = {
 const cop = (v: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(v || 0)
 
-const SHIFT_LABELS = { morning: '☀️ Caja Tarde', afternoon: '🌙 Caja Noche' }
+const SHIFT_LABELS = { morning: '🌇 Caja Tarde', afternoon: '🌙 Caja Noche' }
 
 export default function AdminCierreCajaPage() {
   const [registers, setRegisters]     = useState<CashRegister[]>([])
@@ -353,7 +353,7 @@ export default function AdminCierreCajaPage() {
         <div><label className="label">Caja</label>
           <select value={shiftFilter} onChange={e => setShiftFilter(e.target.value)} className="input-field">
             <option value="">Todas las cajas</option>
-            <option value="morning">☀️ Caja Tarde</option>
+            <option value="morning">🌇 Caja Tarde</option>
             <option value="afternoon">🌙 Caja Noche</option>
           </select>
         </div>
