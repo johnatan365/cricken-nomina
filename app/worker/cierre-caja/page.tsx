@@ -94,7 +94,13 @@ export default function CierreCajaPage() {
     const stored = localStorage.getItem(DRAFT_KEY + '_openedDate')
     if (stored) return stored
     const now    = new Date()
-    const local  = new Date(now.getTime() + (-5 * 60) * 60 * 1000)
+    const local  = new Date(now.getTime() + (-5 * 60) * 60 * 1000)   // hora Colombia (UTC-5)
+    // El turno de la noche termina pasada la medianoche. Si el trabajador abre
+    // el cierre en la madrugada (antes de las 5am), pertenece a la jornada del
+    // día ANTERIOR, no al día nuevo.
+    if (local.getUTCHours() < 5) {
+      local.setTime(local.getTime() - 24 * 60 * 60 * 1000)
+    }
     const date   = local.toISOString().split('T')[0]
     localStorage.setItem(DRAFT_KEY + '_openedDate', date)
     return date
