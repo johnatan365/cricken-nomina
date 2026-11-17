@@ -401,25 +401,48 @@ export default function PagosPage() {
                         return (
                           <div key={p.id} className="border-b border-white/5 last:border-b-0">
                             {/* Fila del pago */}
-                            <button
-                              onClick={() => setExpandedPayments(prev => {
-                                const next = new Set(prev)
-                                next.has(p.id) ? next.delete(p.id) : next.add(p.id)
-                                return next
-                              })}
-                              className="w-full flex items-center justify-between px-4 py-3 pl-8 bg-white/5 hover:bg-white/10 transition-all"
-                            >
-                              <div className="text-left">
+                            <div className="w-full flex items-center justify-between gap-2 px-4 py-3 pl-8 bg-white/5">
+                              <button
+                                onClick={() => setExpandedPayments(prev => {
+                                  const next = new Set(prev)
+                                  next.has(p.id) ? next.delete(p.id) : next.add(p.id)
+                                  return next
+                                })}
+                                className="flex-1 min-w-0 text-left hover:opacity-80 transition-opacity"
+                              >
                                 <p className="text-white text-sm">
                                   {format(parseISO(p.paid_at), "EEEE d 'de' MMMM", { locale: es })}
                                 </p>
                                 <p className="text-white/40 text-xs">{logs.length} día{logs.length !== 1 ? 's' : ''} trabajado{logs.length !== 1 ? 's' : ''}</p>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <p className="font-semibold text-emerald-300 text-sm">{formatCOP(p.amount)}</p>
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  if (!confirm(`¿Marcar como NO pagado el pago de ${formatCOP(p.amount)} del ${format(parseISO(p.paid_at), "d 'de' MMMM", { locale: es })}? Los días volverán a Pagos pendientes.`)) return
+                                  const res = await apiFetch('/api/admin/payments?id=' + p.id, { method: 'DELETE' })
+                                  if (res.ok) {
+                                    setStatus({ type: 'success', msg: `Pago de ${formatCOP(p.amount)} revertido · volvió a Pagos pendientes` })
+                                    await loadData()
+                                    setTimeout(() => setStatus(null), 4000)
+                                  } else {
+                                    setStatus({ type: 'error', msg: 'No se pudo revertir el pago' })
+                                  }
+                                }}
+                                className="flex-shrink-0 inline-flex items-center gap-1 bg-red-500/10 border border-red-400/25 text-red-300 text-[11px] font-semibold rounded-full px-2.5 py-1 hover:bg-red-500/20 transition-all whitespace-nowrap"
+                              >
+                                ↩︎ No pagado
+                              </button>
+                              <button
+                                onClick={() => setExpandedPayments(prev => {
+                                  const next = new Set(prev)
+                                  next.has(p.id) ? next.delete(p.id) : next.add(p.id)
+                                  return next
+                                })}
+                                className="flex items-center gap-1.5 flex-shrink-0"
+                              >
+                                <p className="font-semibold text-emerald-300 text-sm min-w-[58px] text-right">{formatCOP(p.amount)}</p>
                                 <span className={`text-white/40 text-xs transition-transform duration-200 ${isPayOpen ? 'rotate-180' : ''}`}>▾</span>
-                              </div>
-                            </button>
+                              </button>
+                            </div>
 
                             {/* Desglose de días */}
                             {isPayOpen && (
@@ -441,20 +464,7 @@ export default function PagosPage() {
                                 {/* Footer del pago */}
                                 <div className="flex justify-between items-center px-4 py-2 pl-12 border-t border-white/10 bg-white/5">
                                   <p className="text-white/40 text-xs">{logs.length} día{logs.length !== 1 ? 's' : ''} · {logs.reduce((s: number, l: TimeLog) => s + (l.hours_worked || 0), 0).toFixed(1)}h</p>
-                                  <div className="flex items-center gap-3">
-                                    <p className="text-emerald-300 text-xs font-bold">{formatCOP(p.amount)}</p>
-                                    <button onClick={async (e) => {
-                                      e.stopPropagation()
-                                      if (!confirm('Eliminar este pago? Los registros quedarán como pendientes.')) return
-                                      const res = await apiFetch('/api/admin/payments?id=' + p.id, { method: 'DELETE' })
-                                      if (res.ok) {
-                                        setStatus({ type: 'success', msg: 'Pago eliminado' })
-                                        await loadData()
-                                      }
-                                    }} className="text-white/30 hover:text-red-400 text-xs px-2 py-1 rounded-lg hover:bg-red-400/10 transition-all">
-                                      Eliminar
-                                    </button>
-                                  </div>
+                                  <p className="text-emerald-300 text-xs font-bold">{formatCOP(p.amount)}</p>
                                 </div>
                               </div>
                             )}
