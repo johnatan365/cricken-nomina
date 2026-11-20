@@ -91,17 +91,25 @@ export default function CierreCajaPage() {
   // Fecha capturada al abrir el formulario — se guarda en localStorage para que no cambie aunque pasen las 12am
   const [openedDate] = useState(() => {
     if (typeof window === 'undefined') return new Date().toISOString().split('T')[0]
-    const stored = localStorage.getItem(DRAFT_KEY + '_openedDate')
-    if (stored) return stored
     const now    = new Date()
     const local  = new Date(now.getTime() + (-5 * 60) * 60 * 1000)   // hora Colombia (UTC-5)
+    const hour   = local.getUTCHours()
     // El turno de la noche termina pasada la medianoche. Si el trabajador abre
     // el cierre en la madrugada (antes de las 5am), pertenece a la jornada del
     // día ANTERIOR, no al día nuevo.
-    if (local.getUTCHours() < 5) {
+    if (hour < 5) {
       local.setTime(local.getTime() - 24 * 60 * 60 * 1000)
     }
     const date   = local.toISOString().split('T')[0]
+    // La fecha guardada solo vale para la jornada actual (o la de ayer si todavía
+    // es de mañana, por un cierre de noche que se terminó tarde). Una fecha más
+    // vieja quedó de un día en que se abrió el cierre y no se envió: se descarta,
+    // si no la app cree que la caja "ya se cerró hoy" porque otro la cerró ese día.
+    const stored = localStorage.getItem(DRAFT_KEY + '_openedDate')
+    if (stored) {
+      const daysOld = Math.round((Date.parse(date) - Date.parse(stored)) / 86400000)
+      if (daysOld === 0 || (daysOld === 1 && hour < 12)) return stored
+    }
     localStorage.setItem(DRAFT_KEY + '_openedDate', date)
     return date
   })
